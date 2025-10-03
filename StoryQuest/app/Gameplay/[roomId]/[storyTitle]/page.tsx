@@ -9,7 +9,7 @@ import AACKeyboard from "../../../Components/AACKeyboard";
 import useSound from "use-sound";
 import TextToSpeechAACButtons from "../../../Components/TextToSpeechAACButtons";
 import CompletedStory from "@/Components/CompletedStory";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, rgba } from "framer-motion";
 import {
   SpinEffect,
   PulseEffect,
@@ -800,7 +800,7 @@ export default function Home() {
         <div
           className="w-[60%] h-full relative bg-cover bg-center flex justify-center items-center overflow-hidden"
           style={{
-            backgroundImage: `url('/images/${currentStory?.backgroundImage}')`,
+          backgroundImage: `url('/images/${currentStory?.backgroundImage}')`,
             backgroundSize: "cover",
             backgroundPosition: "center center",
             backgroundRepeat: "no-repeat",
@@ -980,6 +980,7 @@ export default function Home() {
                   style={{
                     left: `${image.x}%`,
                     top: `${Math.min(image.y, 60)}%`,
+                    zIndex: 5,
                   }}
                 >
                   {effectComponent}
