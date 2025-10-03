@@ -798,7 +798,7 @@ export default function Home() {
 
         {/* Right Panel: Game Scene */}
         <div
-          className="w-[60%] h-full relative bg-cover bg-center flex justify-center items-center overflow-hidden filter background-30"
+          className="w-[60%] h-full relative bg-cover bg-center flex justify-center items-center overflow-hidden"
           style={{
             backgroundImage: `url('/images/${currentStory?.backgroundImage}')`,
             backgroundSize: "cover",
@@ -806,6 +806,8 @@ export default function Home() {
             backgroundRepeat: "no-repeat",
           }}
         >
+          {/* Dark overlay to make background image darker */}
+          <div className="absolute inset-0 bg-black bg-opacity-10 z-0"></div>
           {/* Completed Phrases (positioned with the text) */}
           {/* Storybook Text Display */}
           <div className="absolute bottom-0 left-0 right-0 min-h-[120px] bg-[url('/images/parchment-texture.png')] bg-cover p-4 border-t-8 border-amber-800 shadow-[0_-10px_30px_rgba(0,0,0,0.3)]"
