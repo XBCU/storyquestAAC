@@ -96,12 +96,6 @@ export default function Home() {
   const skipSetup = process.env.NODE_ENV === "test";
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const [phrase, setPhrase] = useState("");
-  const [userInput, setUserInput] = useState("");
-  const [addedImage, setAddedImage] = useState<string | null>(null);
-  const [images, setImages] = useState<
-    { src: string; alt: string; x: number; y: number }[]
-  >([]);
-  const [isMounted, setIsMounted] = useState(false);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [completedPhrases, setCompletedPhrases] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<object[]>([]);
@@ -109,12 +103,6 @@ export default function Home() {
   const [completedImages, setCompletedImages] = useState<
     { src: string; alt: string; x: number; y: number }[]
   >([]);
-  const [currentImage, setCurrentImage] = useState<{
-    src: string;
-    alt: string;
-    x: number;
-    y: number;
-  } | null>(null);
   const [currentTurn, setCurrentTurn] = useState<number>(1);
   const [playerNumber, setPlayerNumber] = useState<number | null>(null);
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
@@ -139,7 +127,6 @@ export default function Home() {
   const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(
     null
   );
-  const [announcedPlayer, setAnnouncedPlayer] = useState<number | null>(null);
   const [highlightedPlayer, setHighlightedPlayer] = useState<number | null>(
     null
   );
@@ -323,7 +310,6 @@ export default function Home() {
 
     setCurrentStory(storyToUse);
     setPhrase(storyToUse.sections[0].phrase);
-    setIsMounted(true);
   }, [storyTitle, stories]);
 
   //Assigning player #'s
@@ -546,7 +532,6 @@ export default function Home() {
   // Word has been selected from "AAC board", replace blank, add in visual element, update the firestore
   const handleWordSelect = async (word: string) => {
     if (!currentStory) return;
-    setAnnouncedPlayer(null);
     // Clear existing timer
     if (inactivityTimer) {
       clearTimeout(inactivityTimer);
@@ -640,8 +625,6 @@ export default function Home() {
     // Call the function that updates the game state in Firestore (this will trigger phrase change and auto-reading)
     handleWordSelect(word);
 
-    // Reset announcement state and timer 
-    setAnnouncedPlayer(null);
     if (inactivityTimer) {
       clearTimeout(inactivityTimer);
     }
