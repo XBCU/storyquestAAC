@@ -6,21 +6,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import stories, { Story } from "../../stories"; //import the stories interface
 import { useParams } from "next/navigation"; //To retrieve story based on room settings
 import AACKeyboard from "../../../Components/AACKeyboard";
-// import useSound from "use-sound";
 import TextToSpeechAACButtons from "../../../Components/TextToSpeechAACButtons";
-// import CompletedStory from "@/Components/CompletedStory";
 import { motion, AnimatePresence } from "framer-motion";
-// import {
-//   SpinEffect,
-//   PulseEffect,
-//   FadeEffect,
-//   SideToSideEffect,
-//   UpAndDownEffect,
-//   ScaleUpEffect,
-//   BounceEffect,
-//   FlipEffect,
-//   SlideAcrossEffect,
-// } from "../../../Components/AnimationUtils";
 import CompletionPage from "../../../CompletionPage/page";
 // import useAACSounds from "@/Components/useAACSounds";
 import { db } from "../../../../firebaseControls/firebaseConfig";
@@ -49,18 +36,18 @@ const preferredVoices = ["Google US English", "Samantha", "Microsoft Zira Deskto
 const getPreferredVoice = (): SpeechSynthesisVoice | null => {
   // Ensure voices are loaded
   let voices = loadPreferredVoices();
-  
+
   // If no voices loaded yet, trigger loading and try again
   if (voices.length === 0) {
     window.speechSynthesis.getVoices(); // Trigger voice loading
     voices = loadPreferredVoices();
   }
-  
+
   // Still no voices? Wait for voiceschanged event
   if (voices.length === 0) {
     return null; // Will be handled by the component's voice loading logic
   }
-  
+
   for (const name of preferredVoices) {
     const match = voices.find((v) => v.name === name);
     if (match) return match;
@@ -108,7 +95,6 @@ async function savePlayerProfile(
 export default function Home() {
   const skipSetup = process.env.NODE_ENV === "test";
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
-  // const { playSound } = useAACSounds(); // aac mp3 sound hook
   const [phrase, setPhrase] = useState("");
   const [userInput, setUserInput] = useState("");
   const [addedImage, setAddedImage] = useState<string | null>(null);
@@ -133,7 +119,6 @@ export default function Home() {
   const [playerNumber, setPlayerNumber] = useState<number | null>(null);
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
   const [lastPlayedWord, setLastPlayedWord] = useState<string | null>(null);
-  const [lastPlayedTimestamp, setLastPlayedTimestamp] = useState<number | null>(null);
   const [ttsReady, setTtsReady] = useState(false);
   const [avatarModalOpen, setAvatarModalOpen] = useState<boolean>(false); //Opens window for player to choose avatar
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
@@ -159,7 +144,6 @@ export default function Home() {
     null
   );
   const [speechQueue, setSpeechQueue] = useState<SpeechSynthesisUtterance[]>([]);
-  // const [isSpeaking, setIsSpeaking] = useState(false);
   const [isFinalStoryRead, setIsFinalStoryRead] = useState(false);
   const [voicesLoaded, setVoicesLoaded] = useState(false);
   const [isProcessingSpeech, setIsProcessingSpeech] = useState(false);
@@ -190,18 +174,9 @@ export default function Home() {
   const params = useParams();
   // console.log("Params:", params); // Debugging
 
-  const getNextPlayerNum = (): number => {
-    if (currentTurn === maxPlayers) return 1;
-    return currentTurn + 1;
-  };
-
   const roomId = params.roomId as string;
   const storyTitleURL = params.storyTitle as string | undefined;
   const storyTitle = storyTitleURL ? decodeURIComponent(storyTitleURL) : null;
-  const completedLength = completedPhrases.length;
-  const lastCompleted = completedPhrases[completedLength - 1];
-  const secondToLastCompleted = completedPhrases[completedLength - 2];
-  const gameFinished = lastCompleted === "The End!";
 
   const announcePlayer = useCallback(
     async (playerNum: number) => {
@@ -334,7 +309,10 @@ export default function Home() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribePlayers();
+    };
   }, [roomId, lastPlayedWord, currentStory]); // Added currentStory to dependency array
 
   useEffect(() => {
@@ -485,7 +463,7 @@ export default function Home() {
     // Only proceed if there are utterances to speak, we're not already processing, and voices are loaded
     if (speechQueue.length > 0 && !isProcessingSpeech && voicesLoaded) {
       setIsProcessingSpeech(true);
-      
+
       // Get the first utterance from the queue
       const utterance = speechQueue[0];
 
@@ -527,7 +505,7 @@ export default function Home() {
     // Only auto-speak if this is actually a NEW phrase (different from previous)
     if (phrase !== lastPhraseRef.current) {
       lastPhraseRef.current = phrase; // Update the ref to current phrase
-      
+
       const utterance = new SpeechSynthesisUtterance(phrase.replace(/_/g, " "));
       const prefVoice = getPreferredVoice();
       if (prefVoice) {
@@ -564,31 +542,6 @@ export default function Home() {
       setIsProcessingSpeech(false);
     }
   }, []);
-
-  // Not used
-  const handleStoryChange = async (story: Story, phraseLimit: number) => {
-    setCurrentStory(story);
-    setPhrase(story.sections[0].phrase);
-    setCurrentSectionIndex(0);
-    setImages([]);
-    setCompletedPhrases([]);
-    setSelectedWords([]);
-    setTurnReminders([]);
-    setCompletedImages([]);
-    setCurrentImage(null);
-    if (roomId) {
-      const gameRef = doc(db, "games", roomId);
-      await updateDoc(gameRef, {
-        currentSectionIndex: 0,
-        currentPhrase: story.sections[0].phrase,
-        completedPhrases: [],
-        completedImages: [],
-        selectedWords: [],
-        turnReminders: [],
-        gameStatus: "in_progress",
-      });
-    }
-  };
 
   // Word has been selected from "AAC board", replace blank, add in visual element, update the firestore
   const handleWordSelect = async (word: string) => {
