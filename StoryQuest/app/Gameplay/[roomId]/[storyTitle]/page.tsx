@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import stories, { Story, StorySection } from "../../stories"; //import the stories interface
 import { useParams } from "next/navigation"; //To retrieve story based on room settings
 import AACKeyboard from "../../../Components/AACKeyboard";
@@ -139,9 +139,7 @@ export default function Home() {
   const [blockOverlay, setBlockOverlay] = useState<boolean>(false);
   const [showInitialPlayOverlay, setShowInitialPlayOverlay] = useState(true);
   const [isAutoReading, setIsAutoReading] = useState(false);
-  const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(
-    null
-  );
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [announcedPlayer, setAnnouncedPlayer] = useState<number | null>(null);
   const [highlightedPlayer, setHighlightedPlayer] = useState<number | null>(
     null
@@ -208,10 +206,10 @@ export default function Home() {
 
   // NEW: Dedicated effect for turn timeout announcements
   useEffect(() => {
-    if (!currentTurn || !playerAvatars[currentTurn]) return;
+    if (!currentTurn || !playerAvatars[currentTurn] || storyCompleted) return;
 
     // Clear previous timer
-    if (inactivityTimer) clearTimeout(inactivityTimer);
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
 
     // Only set timer if this is the current player's device
     if (playerNumber === currentTurn) {
@@ -219,13 +217,13 @@ export default function Home() {
         announcePlayer(currentTurn);
       }, 30000); // 30 second delay
 
-      setInactivityTimer(timer);
+      inactivityTimerRef.current = timer;
     }
 
     return () => {
-      if (inactivityTimer) clearTimeout(inactivityTimer);
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
-  }, [currentTurn, playerAvatars, playerNumber, announcePlayer]);
+  }, [currentTurn, playerAvatars, playerNumber, announcePlayer, storyCompleted]);
 
   //This is the snapshot used to retrieve game state in firestore
   useEffect(() => {
@@ -494,8 +492,8 @@ export default function Home() {
     if (!currentStory) return;
     setAnnouncedPlayer(null);
     // Clear existing timer
-    if (inactivityTimer) {
-      clearTimeout(inactivityTimer);
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
     }
 
     // Access words from the trimmed sections
@@ -592,8 +590,8 @@ export default function Home() {
 
     // Reset announcement state and timer 
     setAnnouncedPlayer(null);
-    if (inactivityTimer) {
-      clearTimeout(inactivityTimer);
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
     }
   };
 
