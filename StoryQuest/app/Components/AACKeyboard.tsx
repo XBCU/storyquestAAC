@@ -54,12 +54,12 @@ import useAACSounds from "./useAACSounds";
       {blockButtons && (
           <div style={blockAACButtonOverlayStyle}></div>
       )}
-       <h3 className="text-xl font-bold mb-2 text-center text-white">AAC Keyboard</h3>
+       <h3 className="text-xl font-patrick-hand font-bold mb-2 text-center text-black">AAC Keyboard</h3>
        <div className="grid grid-cols-2 gap-2">
          {symbols.map((symbol) => (
            <motion.button
              key={symbol.word}
-             className="p-1 text-white rounded flex flex-col items-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+             className="p-1 text-black font-patrick-hand rounded flex flex-col items-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
              style={{ backgroundColor: buttonColor }}
              onClick={() => handleButtonClick(symbol.word)}
              whileHover={{ scale: 1.1 }}

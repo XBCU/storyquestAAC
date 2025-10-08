@@ -617,7 +617,7 @@ export default function Home() {
           {avatarModalOpen ? (
             <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
               <div className="bg-white p-6 rounded-lg w-[90vw] max-w-md mx-auto">
-                <h2 className="text-xl font-bold mb-3 text-center text-black">
+                <h2 className="text-xl font-patrick-hand font-bold mb-3 text-center text-black">
                   Choose Your Avatar
                 </h2>
                 <div className="grid grid-cols-3 gap-3">
@@ -658,7 +658,7 @@ export default function Home() {
             <div className="flex items-center justify-center h-screen bg-yellow-100">
               <button
                 onClick={() => setAvatarModalOpen(true)}
-                className="w-[80%] h-[30vh] text-5xl bg-orange-500 text-white font-extrabold rounded-2xl shadow-2xl hover:bg-orange-600 transition animate-pulse"
+                className="w-[80%] h-[30vh] text-6xl bg-orange-500 text-white font-patrick-hand font-extrabold rounded-2xl shadow-2xl hover:bg-orange-600 transition animate-pulse"
               >
                 🎮 START GAME
               </button>
@@ -676,7 +676,7 @@ export default function Home() {
       {showInitialPlayOverlay && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-75">
           {numJoined < maxPlayers ? (
-            <p className="mb-4 w-2/3 text-4xl font-bold text-yellow-200 bg-blue-300 bg-opacity-60 p-8 rounded-3xl shadow-2xl flex items-center justify-center space-x-4">
+            <p className="mb-4 w-2/3 text-4xl font-patrick-hand font-bold text-yellow-200 bg-blue-300 bg-opacity-60 p-8 rounded-3xl shadow-2xl flex items-center justify-center space-x-4">
               <span>
                 Waiting for players… ({numJoined}/{maxPlayers})
               </span>
@@ -736,7 +736,7 @@ export default function Home() {
                             {avatar}
                           </span>
                           {highlight && (
-                            <span className="text-xs mt-1 font-bold text-green-600">
+                            <span className="text-xs mt-1 font-bold text-green-600 font-patrick-hand">
                               YOU!
                             </span>
                           )}
@@ -749,17 +749,18 @@ export default function Home() {
               <div className="mt-2 text-center w-full">
                 {playerNumber === currentTurn ? (
                   <p
-                    className={`text-2xl font-extrabold ${highlightedPlayer === currentTurn
-                      ? "text-red-600 animate-pulse"
-                      : "text-green-600"
-                      }`}
+                    className={`text-2xl font-extrabold ${
+                      highlightedPlayer === currentTurn
+                        ? "text-red-600 animate-pulse font-patrick-hand"
+                        : "font-patrick-hand text-green-600"
+                    }`}
                   >
                     {highlightedPlayer === currentTurn
                       ? "⚠️ YOUR TURN! (PLAY NOW!)"
                       : "YOUR TURN!"}
                   </p>
                 ) : (
-                  <p className="text-2xl text-gray-600">
+                  <p className="font-patrick-hand text-2xl text-gray-600">
                     ⏳ Waiting for {playerAvatars[currentTurn]}...
                   </p>
                 )}
