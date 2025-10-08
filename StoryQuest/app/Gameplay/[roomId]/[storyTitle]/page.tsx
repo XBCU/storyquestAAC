@@ -337,6 +337,9 @@ export default function Home() {
         tx.get(roomRef),
       ]);
       const roomData = roomSnap.exists() ? roomSnap.data() : {};
+      if (!roomData.numPlayers) {
+        alert("Number of Players was null in firebase")
+      }
       const roomNumPlayers = roomData.numPlayers || 4;
 
       if (!gameSnap.exists()) {
