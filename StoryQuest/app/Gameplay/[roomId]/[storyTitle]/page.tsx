@@ -806,8 +806,8 @@ export default function Home() {
             backgroundRepeat: "no-repeat",
           }}
         >
-          {/* Dark overlay to make background image darker */}
-          <div className="absolute inset-0 bg-black bg-opacity-15 z-0"></div>
+          {/* Gray overlay to make background image duller/less vibrant */}
+          <div className="absolute inset-0 bg-gray-500 bg-opacity-40 z-0"></div>
           {/* Completed Phrases (positioned with the text) */}
           {/* Storybook Text Display */}
           <div className="absolute bottom-0 left-0 right-0 min-h-[120px] bg-[url('/images/parchment-texture.png')] bg-cover p-4 border-t-8 border-amber-800 shadow-[0_-10px_30px_rgba(0,0,0,0.3)]"
