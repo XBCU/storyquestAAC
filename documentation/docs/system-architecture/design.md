@@ -28,6 +28,46 @@ The client is a React application built with Next.js framework, offering server-
 - Firebase SDK: The client uses the Firebase JavaScript SDK for real-time communication with the back-end.
 - AAC Symbol Library (ARASAAC): Provides visual symbols for communication
 
+
+ **Gameplay:**
+ Gameplay consists of a MadLibs style activity where users select random nouns to create a story. Users are supposed to take turns choosing words to fill in the blank. 
+ 
+ e.g. The ___ is on the bench. 
+ 
+ The words are displayed on the left of the screen in the form of an Augmented and Alternative Communication (AAC) Keyboard. This means that the words are prechosen and displayed on buttons with images of the word as well. 
+
+ SpeechQueue is a queue that pops its first element then narrates it. The SpeechQueue continues to narrate until there are no elements remaining in the queue. 
+
+
+ ```mermaid
+
+sequenceDiagram
+    actor User
+
+    participant TextToSpeechAACButtons
+    participant Gameplay
+    participant SpeechQueue
+
+    Gameplay ->> Gameplay: sentence is chosen at random
+    Gameplay -) +SpeechQueue: Sentence is added to SpeechQueue
+    SpeechQueue ->> -SpeechQueue: SpeechQueue narrates
+    User ->> TextToSpeechAACButtons: User selects button
+    TextToSpeechAACButtons ->> Gameplay: button is selected
+    Gameplay -) +SpeechQueue: button is added to SpeechQueue
+    SpeechQueue ->> -SpeechQueue: SpeechQueue narrates
+    Gameplay ->> Gameplay: Sentence with selected button is added to FinalStory
+    Gameplay ->> SpeechQueue: FinalStory is added to SpeechQueue
+    SpeechQueue ->> SpeechQueue: FinalStory is narrated
+
+
+```
+
+ - User chooses between X random AACButtons to craft a MadLibs style story
+ - Initial sentence is chosen at random. Sentence is added to SpeechQueue.
+ - When a user clicks an AACButton, AACButton word is added to SpeechQueue.
+ - Repeat for however many sentences are left.
+ - Final story is added to SpeechQueue.
+
 ### Server (Back-End)
 The back-end services are managed by Firebase, which provides real-time database capabilities, authentication, and cloud functions for game logic. 
 This architecture minimizes server management overhead while offering scalability and performance.
@@ -132,6 +172,10 @@ classDiagram
         +playSound(word)
     }
 
+    class Gameplay{
+
+    }
+
     %% Relationships
     Home --> CreateRoomPage
     Home --> JoinRoomPage
@@ -155,6 +199,9 @@ classDiagram
     TextToSpeechAACButtons --> useTextToSpeech
 
     TextToSpeechTextOnly --> useTextToSpeech
+
+    useAACSounds --> Gameplay
+
 
 ```
 *Figure 1: Class diagram showing interactions between classes within StoryQuest*
