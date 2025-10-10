@@ -345,8 +345,8 @@ sections: [
     title: "Space Adventure",
     backgroundImage: "space-background.svg",
     colorTheme: {
-      backgroundColor: "#0a0a23", // Deep space blue
-      buttonColor: "#4d79ff", // Cosmic blue
+      backgroundColor: "#79b1e0ff", // Deep space blue
+      buttonColor: "#8ae0f8ff", // Cosmic blue
     },
     sections: [
       {
@@ -505,8 +505,8 @@ sections: [
 title: "Under the Sea",
 backgroundImage: "ocean-background.png",
 colorTheme: {
-backgroundColor: "#0a0a23", // Deep space blue
-buttonColor: "#4d79ff", // Cosmic blue
+backgroundColor: "#79b1e0ff", // Deep space blue
+buttonColor: "#8ae0f8ff", // Cosmic blue
 },
 sections: [
   
