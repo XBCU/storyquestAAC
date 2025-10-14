@@ -164,14 +164,27 @@ export default function Home() {
   const roomId = params.roomId as string;
   const storyTitleURL = params.storyTitle as string | undefined;
   const storyTitle = storyTitleURL ? decodeURIComponent(storyTitleURL) : null;
+  const completedLength = completedPhrases.length;
+  const lastCompleted = completedPhrases[completedLength - 1];
+  const secondToLastCompleted = completedPhrases[completedLength - 2];
+  const gameFinished = lastCompleted === "The End!";
+  let avatarArray = new Map<string, string>();
+  avatarArray.set("🐯", "Tiger");
+  avatarArray.set("🐻", "Bear");
+  avatarArray.set("🦄", "Unicorn");
+  avatarArray.set("🐰", "Rabbit");
+  avatarArray.set("🐬", "Dolphin");
+  avatarArray.set("🦋", "Butterfly");
 
   const announcePlayer = useCallback(
     async (playerNum: number) => {
       const avatar = playerAvatars[playerNum];
       if (avatar) {
         // Audio announcement - add to speech queue instead of direct play
+        let playerName = avatarArray.get(avatar);
+        // Audio announcement
         const utterance = new SpeechSynthesisUtterance(
-          `Player ${playerNum}, ${avatar}, it's your turn!`
+          `Player ${playerNum}, ${playerName}, it's your turn!`
         );
         const prefVoice = getPreferredVoice();
         if (prefVoice) utterance.voice = prefVoice;
@@ -330,6 +343,9 @@ export default function Home() {
         tx.get(roomRef),
       ]);
       const roomData = roomSnap.exists() ? roomSnap.data() : {};
+      if (!roomData.numPlayers) {
+        alert("Number of Players was null in firebase")
+      }
       const roomNumPlayers = roomData.numPlayers || 4;
 
       if (!gameSnap.exists()) {
@@ -440,7 +456,9 @@ export default function Home() {
       setIsAutoReading(false);
     });
     // Add the phrase to the front of the speech queue
-    setSpeechQueue(queue => [u, ...queue]);
+      if (phrase && currentTurn === playerNumber){
+          setSpeechQueue(queue => [u, ...queue]);
+      }
   }, [phrase]);
 
   // useEffect to process speech queue
@@ -718,7 +736,7 @@ export default function Home() {
           ) : (
             <button
               onClick={speakCurrentPhrase}
-              className="relative text-9xl p-10 bg-gradient-to-tr from-purple-400 via-pink-500 to-red-500 text-white rounded-full shadow-2xl ring-4 ring-offset-4 ring-purple-300 
+              className="relative text-9xl p-10 bg-gradient-to-tr from-purple-400 via-pink-500 to-red-500 text-white rounded-full shadow-2xl ring-4 ring-offset-4 ring-purple-300
             transform transition duration-300 ease-in-out hover:scale-110 active:scale-95 animate-pulse"
               aria-label="Press to start reading"
             >
