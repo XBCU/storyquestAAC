@@ -49,6 +49,11 @@ export default function CreateRoomPage() {
       return;
     }
 
+    if (!numPlayers) {
+      alert("Please select a number of players")
+      return;
+    }
+
     setLoading(true);
     buttonHandler("select", "Start Adventure!", speak);
 

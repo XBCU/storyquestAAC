@@ -168,14 +168,22 @@ export default function Home() {
   const lastCompleted = completedPhrases[completedLength - 1];
   const secondToLastCompleted = completedPhrases[completedLength - 2];
   const gameFinished = lastCompleted === "The End!";
+  let avatarArray = new Map<string, string>();
+  avatarArray.set("🐯", "Tiger");
+  avatarArray.set("🐻", "Bear");
+  avatarArray.set("🦄", "Unicorn");
+  avatarArray.set("🐰", "Rabbit");
+  avatarArray.set("🐬", "Dolphin");
+  avatarArray.set("🦋", "Butterfly");
 
   const announcePlayer = useCallback(
     async (playerNum: number) => {
       const avatar = playerAvatars[playerNum];
       if (avatar) {
+        let playerName = avatarArray.get(avatar);
         // Audio announcement
         const utterance = new SpeechSynthesisUtterance(
-          `Player ${playerNum}, ${avatar}, it's your turn!`
+          `Player ${playerNum}, ${playerName}, it's your turn!`
         );
         window.speechSynthesis.speak(utterance);
 
@@ -329,6 +337,9 @@ export default function Home() {
         tx.get(roomRef),
       ]);
       const roomData = roomSnap.exists() ? roomSnap.data() : {};
+      if (!roomData.numPlayers) {
+        alert("Number of Players was null in firebase")
+      }
       const roomNumPlayers = roomData.numPlayers || 4;
 
       if (!gameSnap.exists()) {
