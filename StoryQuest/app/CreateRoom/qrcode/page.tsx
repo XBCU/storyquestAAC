@@ -18,13 +18,11 @@ function QRCodeContent() {
     const storyTitle = searchParams.get("storyTitle"); //Get story title from URL
     const url = (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 
-// `StoryQuest/app/CreateRoom/qrcode/page.tsx` (change)
     if (!roomId) {
         return <p>Error: No room ID found.</p>;
     }
 
     const joinRoomUrl = `${url}/Gameplay/${roomId}/${storyTitle}`;
-    //const joinRoomUrl = `/Gameplay/${roomId}/${storyTitle}`;
 
 
     const {speak} = useQuickTextToSpeech(); // useTextToSpeech hook
