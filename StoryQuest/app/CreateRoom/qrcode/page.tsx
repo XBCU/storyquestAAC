@@ -16,7 +16,7 @@ function QRCodeContent() {
     const searchParams = useSearchParams();
     const roomId = searchParams.get("roomId"); // Get room ID from URL
     const storyTitle = searchParams.get("storyTitle"); //Get story title from URL
-    const url = (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+    const url = (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"); // Get base URL from browser
 
     if (!roomId) {
         return <p>Error: No room ID found.</p>;
