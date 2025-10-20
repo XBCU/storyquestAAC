@@ -16,13 +16,13 @@ function QRCodeContent() {
     const searchParams = useSearchParams();
     const roomId = searchParams.get("roomId"); // Get room ID from URL
     const storyTitle = searchParams.get("storyTitle"); //Get story title from URL
+    const url = (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"); // Get base URL from browser
 
     if (!roomId) {
         return <p>Error: No room ID found.</p>;
     }
 
-    const joinRoomUrl = `https://project-aac-game-team-b--storyquest-fcdc2.us-central1.hosted.app/Gameplay/${roomId}/${storyTitle}`;
-    //const joinRoomUrl = `/Gameplay/${roomId}/${storyTitle}`;
+    const joinRoomUrl = `${url}/Gameplay/${roomId}/${storyTitle}`;
 
 
     const {speak} = useQuickTextToSpeech(); // useTextToSpeech hook
@@ -34,7 +34,7 @@ function QRCodeContent() {
 
 
     return (
-        <div 
+        <div
             className="h-screen w-screen overflow-hidden bg-cover bg-center flex items-center justify-center p-4"
             style={{ backgroundImage: "url('/images/home-background.jpg')" }}
         >
@@ -44,7 +44,7 @@ function QRCodeContent() {
                 <h1 className="text-2xl font-bold text-gray-800 text-center" onClick={()=>handleClick("Scan to Join Room")}>
                     Scan to Join Room
                 </h1>
-                 <div className="absolute bottom-40">            
+                 <div className="absolute bottom-40">
                     <Link href="/" className="absolute top-4 left-4 z-10 scale-50">
                         <ExitButton />
                     </Link>
@@ -59,7 +59,7 @@ function QRCodeContent() {
                     <div className="flex justify-center gap-1">
                         {[1, 2, 3, 4].map((step) => (
                             <div key={step} className="items-center">
-                                <Image 
+                                <Image
                                     src={`/diagrams/QR${step}.png`}
                                     alt={`Step ${step}`}
                                     width={120}
@@ -82,10 +82,10 @@ function QRCodeContent() {
                 {/* QR Code */}
                 <div className="flex flex-col items-center justify-center">
                     <div className=" mt-5 scale-125 p-2 bg-white rounded-xl shadow-inner border-4 border-teal-300">
-                        <QRCode 
-                        value={joinRoomUrl} 
-                        size={220} 
-                        ecLevel="H" 
+                        <QRCode
+                        value={joinRoomUrl}
+                        size={220}
+                        ecLevel="H"
                         eyeRadius={5}
                         />
                     </div>
@@ -104,4 +104,4 @@ export default function QRCodePage() {
             <QRCodeContent />
         </Suspense>
     );
-} 
+}
