@@ -3,10 +3,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import stories, { Story, StorySection } from "../../stories"; //import the stories interface
+import stories, { Story } from "../../stories"; //import the stories interface
 import { useParams } from "next/navigation"; //To retrieve story based on room settings
 import AACKeyboard from "../../../Components/AACKeyboard";
-import useSound from "use-sound";
 import TextToSpeechAACButtons from "../../../Components/TextToSpeechAACButtons";
 import CompletedStory from "@/Components/CompletedStory";
 import { motion, AnimatePresence, rgba } from "framer-motion";
@@ -22,13 +21,13 @@ import {
   SlideAcrossEffect,
 } from "../../../Components/AnimationUtils";
 import CompletionPage from "../../../CompletionPage/page";
-import TextToSpeechTextOnly from "@/Components/TextToSpeechTextOnly";
-import useAACSounds from "@/Components/useAACSounds";
+// import useAACSounds from "@/Components/useAACSounds";
+import useSpeechQueue, { getPreferredVoice } from "../../../Components/useSpeechQueue";
 import { db } from "../../../../firebaseControls/firebaseConfig";
 import {
   doc,
   getDoc,
-  addDoc,
+  // addDoc,
   setDoc,
   updateDoc,
   onSnapshot,
@@ -40,22 +39,6 @@ import {
 
 const availableAvatars = ["🐯", "🐻", "🦄", "🐰", "🐬", "🦋"];
 
-const loadPreferredVoices = (): SpeechSynthesisVoice[] => {
-  const voices = window.speechSynthesis.getVoices();
-  return voices.filter((v) => v.lang.includes("en-US"));
-};
-
-const preferredVoices = ["Google US English", "Samantha", "Microsoft Zira Desktop", "Microsoft Aria Online (Natural)", "Google US Female",];
-
-const getPreferredVoice = (): SpeechSynthesisVoice | null => {
-  const voices = loadPreferredVoices();
-  for (const name of preferredVoices) {
-    const match = voices.find((v) => v.name === name);
-    if (match) return match;
-  }
-  //fallback to first us eng voice if none match
-  return voices[0] || null;
-};
 
 // getImageAnimation: Returns a reusable animation configuration for images.
 const getImageAnimation = () => ({
@@ -67,7 +50,7 @@ const getImageAnimation = () => ({
 
 const getNumPhrases = (difficulty: "easy" | "medium" | "hard") => {
   if (difficulty === "easy") return 4;
-  if (difficulty === "medium") return 8;
+  if (difficulty === "medium" ) return 8;
   if (difficulty === "hard") return 12;
   return 8; // default
 };
@@ -96,14 +79,7 @@ async function savePlayerProfile(
 export default function Home() {
   const skipSetup = process.env.NODE_ENV === "test";
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
-  const { playSound } = useAACSounds(); // aac mp3 sound hook
   const [phrase, setPhrase] = useState("");
-  const [userInput, setUserInput] = useState("");
-  const [addedImage, setAddedImage] = useState<string | null>(null);
-  const [images, setImages] = useState<
-    { src: string; alt: string; x: number; y: number }[]
-  >([]);
-  const [isMounted, setIsMounted] = useState(false);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [completedPhrases, setCompletedPhrases] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<object[]>([]);
@@ -111,17 +87,10 @@ export default function Home() {
   const [completedImages, setCompletedImages] = useState<
     { src: string; alt: string; x: number; y: number }[]
   >([]);
-  const [currentImage, setCurrentImage] = useState<{
-    src: string;
-    alt: string;
-    x: number;
-    y: number;
-  } | null>(null);
   const [currentTurn, setCurrentTurn] = useState<number>(1);
   const [playerNumber, setPlayerNumber] = useState<number | null>(null);
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
   const [lastPlayedWord, setLastPlayedWord] = useState<string | null>(null);
-  const [lastPlayedTimestamp, setLastPlayedTimestamp] = useState<number | null>(null);
   const [ttsReady, setTtsReady] = useState(false);
   const [avatarModalOpen, setAvatarModalOpen] = useState<boolean>(false); //Opens window for player to choose avatar
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
@@ -139,25 +108,22 @@ export default function Home() {
   const [blockOverlay, setBlockOverlay] = useState<boolean>(false);
   const [showInitialPlayOverlay, setShowInitialPlayOverlay] = useState(true);
   const [isAutoReading, setIsAutoReading] = useState(false);
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [announcedPlayer, setAnnouncedPlayer] = useState<number | null>(null);
+  const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(
+    null
+  );
   const [highlightedPlayer, setHighlightedPlayer] = useState<number | null>(
     null
   );
-  const [speechQueue, setSpeechQueue] = useState<SpeechSynthesisUtterance[]>([]);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [isFinalStoryRead, setIsFinalStoryRead] = useState(false);
+  const { addToSpeechQueue, stopSpeech, isProcessingSpeech, voicesLoaded } = useSpeechQueue();
+  const lastPhraseRef = useRef<string>("");
+  const [lastSelectorNumber, setLastSelectorNumber] = useState<number | null>(null);
 
   //Grabbing roomID and story title from URL
   //roomID stores in firestore
   //story chosen from create room becomes default story
   const params = useParams();
-  console.log("Params:", params); // Debugging
-
-  const getNextPlayerNum = (): number => {
-    if (currentTurn === maxPlayers) return 1;
-    return currentTurn + 1;
-  };
+  // console.log("Params:", params); // Debugging
 
   const roomId = params.roomId as string;
   const storyTitleURL = params.storyTitle as string | undefined;
@@ -166,16 +132,28 @@ export default function Home() {
   const lastCompleted = completedPhrases[completedLength - 1];
   const secondToLastCompleted = completedPhrases[completedLength - 2];
   const gameFinished = lastCompleted === "The End!";
+  let avatarArray = new Map<string, string>();
+  avatarArray.set("🐯", "Tiger");
+  avatarArray.set("🐻", "Bear");
+  avatarArray.set("🦄", "Unicorn");
+  avatarArray.set("🐰", "Rabbit");
+  avatarArray.set("🐬", "Dolphin");
+  avatarArray.set("🦋", "Butterfly");
 
   const announcePlayer = useCallback(
     async (playerNum: number) => {
       const avatar = playerAvatars[playerNum];
       if (avatar) {
+        // Audio announcement - add to speech queue instead of direct play
+        let playerName = avatarArray.get(avatar);
         // Audio announcement
         const utterance = new SpeechSynthesisUtterance(
-          `Player ${playerNum}, ${avatar}, it's your turn!`
+          `Player ${playerNum}, ${playerName}, it's your turn!`
         );
-        window.speechSynthesis.speak(utterance);
+        const prefVoice = getPreferredVoice();
+        if (prefVoice) utterance.voice = prefVoice;
+
+        addToSpeechQueue(utterance);
 
         // Visual highlight
         setHighlightedPlayer(playerNum);
@@ -192,7 +170,7 @@ export default function Home() {
         setTimeout(() => setHighlightedPlayer(null), 5000); //clears after 5 seconds
       }
     },
-    [playerAvatars]
+    [playerAvatars, addToSpeechQueue, turnReminders]
   );
 
   useEffect(() => {
@@ -267,9 +245,20 @@ export default function Home() {
           }, 3000);
         }
 
-        const lastWord = gameData.lastWordSelected?.word;
-        if (lastWord && lastWord !== lastPlayedWord) {
-          setLastPlayedWord(lastWord);
+        const lastSel = gameData.lastWordSelected;
+        if (lastSel) {
+          // Prefer explicit playerNumber if present; otherwise, derive from avatar mapping
+          if (typeof lastSel.playerNumber === 'number') {
+            setLastSelectorNumber(lastSel.playerNumber);
+          } else if (lastSel.player) {
+            const entry = Object.entries(playerAvatars).find(([num, avatar]) => avatar === lastSel.player);
+            setLastSelectorNumber(entry ? Number(entry[0]) : null);
+          }
+
+          const lastWord = lastSel?.word;
+          if (lastWord && lastWord !== lastPlayedWord) {
+            setLastPlayedWord(lastWord);
+          }
         }
 
         if (gameData.storyTitle && !currentStory) {
@@ -295,7 +284,10 @@ export default function Home() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribePlayers();
+    };
   }, [roomId, lastPlayedWord, currentStory]); // Added currentStory to dependency array
 
   useEffect(() => {
@@ -306,7 +298,6 @@ export default function Home() {
 
     setCurrentStory(storyToUse);
     setPhrase(storyToUse.sections[0].phrase);
-    setIsMounted(true);
   }, [storyTitle, stories]);
 
   //Assigning player #'s
@@ -327,6 +318,9 @@ export default function Home() {
         tx.get(roomRef),
       ]);
       const roomData = roomSnap.exists() ? roomSnap.data() : {};
+      if (!roomData.numPlayers) {
+        alert("Number of Players was null in firebase")
+      }
       const roomNumPlayers = roomData.numPlayers || 4;
 
       if (!gameSnap.exists()) {
@@ -401,6 +395,19 @@ export default function Home() {
   // useEffect for the final story
   useEffect(() => {
     if (storyCompleted && !isFinalStoryRead) {
+      // Only the device belonging to the last selector should read the final story
+      let myNumber: number | null = playerNumber;
+      if (myNumber == null && typeof window !== 'undefined') {
+        const fromSession = sessionStorage.getItem('playerNumber');
+        if (fromSession) {
+          const parsed = Number(fromSession);
+          if (!Number.isNaN(parsed)) myNumber = parsed;
+        }
+      }
+      if (myNumber == null || lastSelectorNumber == null || myNumber !== lastSelectorNumber) {
+        return;
+      }
+
       setIsFinalStoryRead(true);
 
       // Combine all phrases into one complete story
@@ -411,16 +418,23 @@ export default function Home() {
       if (prefVoice) finalUtterance.voice = prefVoice;
 
       // Set a function to show the overlay when the narration finishes
-      finalUtterance.onend = () => {
+      finalUtterance.onend = async () => {
         console.log("Final story narration complete.");
         setShowOverlay(true);
+        try {
+          const gameRef = doc(db, "games", roomId);
+          await setDoc(gameRef, { ttsDone: true }, { merge: true });
+        } catch (e) {
+          console.warn("Failed to mark ttsDone:", e);
+        }
       };
 
+      // Add to speech queue instead of direct play
       setTimeout(() => {
-        window.speechSynthesis.speak(finalUtterance);
+        addToSpeechQueue(finalUtterance);
       }, 1500);
     }
-  }, [storyCompleted, isFinalStoryRead, completedPhrases]);
+  }, [storyCompleted, isFinalStoryRead, completedPhrases, addToSpeechQueue, playerNumber, lastSelectorNumber]);
 
   const speakCurrentPhrase = useCallback(() => {
     setShowInitialPlayOverlay(false);
@@ -435,62 +449,78 @@ export default function Home() {
       setIsAutoReading(false);
     });
     // Add the phrase to the front of the speech queue
-    setSpeechQueue(queue => [u, ...queue]);
-  }, [phrase]);
+    addToSpeechQueue(u, true); // true = add to front
 
-  // useEffect to process speach queue
+  }, [phrase, currentTurn, playerNumber, addToSpeechQueue]);
+
+
+  // Auto-speak new phrases only when phrase actually changes
   useEffect(() => {
-    // Only proceed if there are words to speak and TTS is not speaking at the moment
-    if (speechQueue.length > 0 && !isSpeaking && !storyCompleted) {
-      setIsSpeaking(true);
-      
-      // Get the first utterance from the queue
-      const utterance = speechQueue[0];
-     
-      // When utterance finishes speaking, removes firwst item from queue and resets isSpeaking
-      utterance.onend = () => {
-        setSpeechQueue((prevQueue) => prevQueue.slice(1));
-        setIsSpeaking(false);
-      };
-      
-      utterance.onerror = (e) => {
-        console.warn("Speech synthesis error:", e);
-        setSpeechQueue((prevQueue) => prevQueue.slice(1));
-        setIsSpeaking(false);
-      };
-      window.speechSynthesis.speak(utterance);
+    // Don't auto-speak if overlay is showing, voices aren't loaded, or phrase is empty
+    if (showInitialPlayOverlay || !voicesLoaded || !phrase || phrase.trim() === "") {
+      return;
     }
-  }, [speechQueue, isSpeaking]);
 
-  // Not used
-  const handleStoryChange = async (story: Story, phraseLimit: number) => {
-    setCurrentStory(story);
-    setPhrase(story.sections[0].phrase);
-    setCurrentSectionIndex(0);
-    setImages([]);
-    setCompletedPhrases([]);
-    setSelectedWords([]);
-    setTurnReminders([]);
-    setCompletedImages([]);
-    setCurrentImage(null);
-    if (roomId) {
-      const gameRef = doc(db, "games", roomId);
-      await updateDoc(gameRef, {
-        currentSectionIndex: 0,
-        currentPhrase: story.sections[0].phrase,
-        completedPhrases: [],
-        completedImages: [],
-        selectedWords: [],
-        turnReminders: [],
-        gameStatus: "in_progress",
-      });
+    // Only auto-speak for the active player's device
+    let myNumber: number | null = playerNumber;
+    if (myNumber == null && typeof window !== 'undefined') {
+      const fromSession = sessionStorage.getItem('playerNumber');
+      if (fromSession) {
+        const parsed = Number(fromSession);
+        if (!Number.isNaN(parsed)) myNumber = parsed;
+      }
     }
-  };
+    if (myNumber == null || currentTurn == null || myNumber !== currentTurn) {
+      return;
+    }
+
+    // Don't auto-speak "The End!" - it will be handled by the final story effect
+    if (phrase === "The End!") {
+      return;
+    }
+
+    // Only auto-speak if this is actually a NEW phrase (different from previous)
+    if (phrase !== lastPhraseRef.current) {
+      lastPhraseRef.current = phrase; // Update the ref to current phrase
+
+      const utterance = new SpeechSynthesisUtterance(phrase.replace(/_/g, " "));
+      const prefVoice = getPreferredVoice();
+      if (prefVoice) {
+        utterance.voice = prefVoice;
+      }
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // Add to speech queue
+      addToSpeechQueue(utterance);
+    }
+  }, [phrase, showInitialPlayOverlay, voicesLoaded, addToSpeechQueue, playerNumber, currentTurn]);
+
+  // Handle TTS button actions from TextToSpeechAACButtons component
+  const handleTTSButtonPress = useCallback((action: 'play' | 'stop', text: string) => {
+    if (action === 'play') {
+      // Add the phrase to speech queue
+      const utterance = new SpeechSynthesisUtterance(text.replace(/_/g, " "));
+      const prefVoice = getPreferredVoice();
+      if (prefVoice) {
+        utterance.voice = prefVoice;
+      }
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // Add to front of queue for immediate playback
+      addToSpeechQueue(utterance, true);
+    } else if (action === 'stop') {
+      // Clear the speech queue and stop current speech
+      stopSpeech();
+    }
+  }, [addToSpeechQueue, stopSpeech]);
 
   // Word has been selected from "AAC board", replace blank, add in visual element, update the firestore
   const handleWordSelect = async (word: string) => {
     if (!currentStory) return;
-    setAnnouncedPlayer(null);
     // Clear existing timer
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
@@ -516,6 +546,7 @@ export default function Home() {
       word,
       timestamp: new Date(),
       player: playerAvatars[currentTurn],
+      playerNumber: currentTurn,
     };
 
     const newImage = {
@@ -535,10 +566,10 @@ export default function Home() {
       const maxPlayers = data.maxPlayers || 4;
       const nextTurn = currentTurn === maxPlayers ? 1 : currentTurn + 1;
       const nextSectionIndex = currentSectionIndex + 1;
-      const isLastSection = nextSectionIndex >= numberOfPhrasesForGame; // Still use numberOfPhrasesForGame for the final check
+      const isLastSection = nextSectionIndex >= numberOfPhrasesForGame;
       const nextPhrase = isLastSection
         ? "The End!"
-        : trimmedSections[nextSectionIndex]?.phrase || "The End!"; // Access phrase from trimmedSections
+        : trimmedSections[nextSectionIndex]?.phrase || "The End!";
 
       //if game already exists just update game document, else create new game document
       const gameDataToSave = {
@@ -557,7 +588,6 @@ export default function Home() {
         numberOfPhrases: numberOfPhrasesForGame, // Ensure this is saved
       };
       await setDoc(gameRef, gameDataToSave, { merge: true });
-      // await updateDoc(gameRef, gameDataToSave);
       if (!isLastSection) {
         setCurrentSectionIndex(nextSectionIndex);
         // Set the next phrase from the trimmed sections
@@ -578,18 +608,9 @@ export default function Home() {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(word);
-    const prefVoice = getPreferredVoice();
-    if (prefVoice) utterance.voice = prefVoice;
-
-    // Add utterance to speech queue instead of playing it directly
-    setSpeechQueue(queue => [...queue, utterance]);
-
-    // Call the function that updates the game state in Firestore
     handleWordSelect(word);
 
-    // Reset announcement state and timer 
-    setAnnouncedPlayer(null);
+    // Reset announcement state and timer
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
@@ -683,7 +704,7 @@ export default function Home() {
           ) : (
             <button
               onClick={speakCurrentPhrase}
-              className="relative text-9xl p-10 bg-gradient-to-tr from-purple-400 via-pink-500 to-red-500 text-white rounded-full shadow-2xl ring-4 ring-offset-4 ring-purple-300 
+              className="relative text-9xl p-10 bg-gradient-to-tr from-purple-400 via-pink-500 to-red-500 text-white rounded-full shadow-2xl ring-4 ring-offset-4 ring-purple-300
             transform transition duration-300 ease-in-out hover:scale-110 active:scale-95 animate-pulse"
               aria-label="Press to start reading"
             >
@@ -713,13 +734,12 @@ export default function Home() {
                     .sort(([a], [b]) => Number(a) - Number(b))
                     .map(([num, avatar]) => {
                       const slot = Number(num);
-                      const highlight =
-                        slot === currentTurn && slot === playerNumber;
+                      const highlight = slot === currentTurn && slot === playerNumber;
                       return (
                         <div key={num} className="flex flex-col items-center">
                           <span
-                            className={`
-                              ${highlight
+                            className={`${
+                              highlight
                                 ? "text-7xl p-4 border-4 ring-4 ring-yellow-300 bg-green-500 rounded-full scale-150 animate-pulse glow"
                                 : "text-5xl p-2 border-2 border-gray-400"
                               }
@@ -791,7 +811,8 @@ export default function Home() {
 
           <TextToSpeechAACButtons
             text={phrase}
-            disabled={isAutoReading} // Pass the auto-read state
+            disabled={isAutoReading}
+            onButtonPress={handleTTSButtonPress}
           />
         </div>
 
@@ -799,7 +820,7 @@ export default function Home() {
         <div
           className="w-[60%] h-full relative bg-cover bg-center flex justify-center items-center overflow-hidden"
           style={{
-          backgroundImage: `url('/images/${currentStory?.backgroundImage}')`,
+            backgroundImage: `url('/images/${currentStory?.backgroundImage}')`,
             backgroundSize: "cover",
             backgroundPosition: "center center",
             backgroundRepeat: "no-repeat",
@@ -988,9 +1009,6 @@ export default function Home() {
             })}
           </AnimatePresence>
 
-          {/* Calls AutomaticTextToSpeech, which speech texts the current fill in the blank phrase*/}
-          {phrase && <TextToSpeechTextOnly key={phrase} text={phrase} playOverlay={showInitialPlayOverlay} />}
-
           {showOverlay && (
             <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center">
               <CompletionPage />
@@ -1001,3 +1019,4 @@ export default function Home() {
     </>
   );
 }
+

@@ -72,7 +72,7 @@ Figure 2
 <details open="True">
 1. User joins a room. 
 2. User is presented with an AAC keyboard layout on the left of their screen during gameplay. 
-3. During their turn, the user can click AAC buttons. 
+3. During their turn, phrase is spoken and user can click AAC buttons. 
 4. When a button is clicked, its label is sent to the device’s speech synthesis engine. 
 5. The button’s label is read aloud using synthesized speech. 
 </details>
@@ -88,12 +88,21 @@ sequenceDiagram
     D ->>+ GR: Notify that user joined room
     GR -->> User: Display AAC keyboard layout
 
+    GR ->> D: Request player number
+    D -->> GR: Return player number
+
+    Note over GR: currentTurn == playerNumber
+    
+    GR ->>+ TTS: Send current phrase
+    TTS -->>- GR: Synthesized phrase audio
+    GR -->> User: Play phrase aloud
+
     Note over User,GR: During gameplay
 
     User ->> GR: Clicks an AAC button
     GR ->>+ TTS: Send label of clicked AAC button
-    TTS -->>- GR: Synthesized speech audio
-    GR -->> User: Play speech aloud
+    TTS -->>- GR: Synthesized word audio
+    GR -->> User: Play word aloud
 ```
 Figure 3
 ## Game Mechanics
