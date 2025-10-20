@@ -56,22 +56,23 @@ describe('useSpeechQueue', () => {
     expect(mockSpeechSynthesis.speak.mock.calls[0][0].text).toBe('Hello, world!');
   });
 
-  test('should process multiple utterances in order', async () => {
-    const { result } = renderHook(() => useSpeechQueue());
+test('should process multiple utterances in order', async () => {
+  const { result } = renderHook(() => useSpeechQueue());
 
-    await act(async () => {
-      result.current.addToSpeechQueue(new SpeechSynthesisUtterance('First'));
-      result.current.addToSpeechQueue(new SpeechSynthesisUtterance('Second'));
-    });
-
-    await act(async () => {
-        // allow queue to be processed
-    });
-
-    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
-    expect(mockSpeechSynthesis.speak.mock.calls[0][0].text).toBe('First');
-    expect(mockSpeechSynthesis.speak.mock.calls[1][0].text).toBe('Second');
+  await act(async () => {
+    result.current.addToSpeechQueue(new SpeechSynthesisUtterance('First'));
+    result.current.addToSpeechQueue(new SpeechSynthesisUtterance('Second'));
   });
+
+  await act(async () => {
+    // allow the mock setTimeout-driven `onend` to run
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
+  expect(mockSpeechSynthesis.speak.mock.calls[0][0].text).toBe('First');
+  expect(mockSpeechSynthesis.speak.mock.calls[1][0].text).toBe('Second');
+});
 
   test('should clear the speech queue', async () => {
     const { result } = renderHook(() => useSpeechQueue());
