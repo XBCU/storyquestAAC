@@ -1,23 +1,30 @@
 class MockSpeechSynthesisUtterance {
     text: string;
+    private listeners: Record<string, Array<(...args: any[]) => void>> = {};
     constructor(text: string) {
       this.text = text;
     }
-    // stub out the event API so addEventListener won’t crash
+    // store listeners so tests can emit events
     addEventListener(type: string, listener: (...args: any[]) => void) {
+      if (!this.listeners[type]) this.listeners[type] = [];
+      this.listeners[type].push(listener);
     }
     removeEventListener(type: string, listener: (...args: any[]) => void) {
-
+      if (!this.listeners[type]) return;
+      this.listeners[type] = this.listeners[type].filter((l) => l !== listener);
+    }
+    _emit(type: string, ...args: any[]) {
+      (this.listeners[type] || []).forEach((l) => l(...args));
     }
   }
-  
+
 (global as any).SpeechSynthesisUtterance = MockSpeechSynthesisUtterance;
 
 Object.defineProperty(HTMLMediaElement.prototype, 'play', {
     configurable: true,
     value: jest.fn().mockResolvedValue(undefined),
   });
-  
+
   // stub pause
   Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
     configurable: true,
@@ -26,12 +33,12 @@ Object.defineProperty(HTMLMediaElement.prototype, 'play', {
 
   //mock of useAACSounds component
   jest.mock('../../Components/useAACSounds', () => {
-  
+
     const originalModule = jest.requireActual('../../Components/useAACSounds');
-    
+
     // Create a mock function
     const mockPlaySound = jest.fn();
-    
+
     return {
       __esModule: true,
       default: () => ({
@@ -65,11 +72,11 @@ jest.mock('firebase/firestore', () => ({
     collection: jest.fn(),
     serverTimestamp: jest.fn(),
     runTransaction: jest.fn(),
-  })); 
+  }));
 
 beforeEach(() => {
     jest.clearAllMocks();
-  
+
     // Mock Firestore to simulate a successful update
     const mockUpdateDoc = jest.fn().mockResolvedValue(undefined);
     const mockGetDoc = jest.fn().mockImplementation((ref) => {
@@ -89,14 +96,14 @@ beforeEach(() => {
       }
       return Promise.resolve({ exists: () => false });
     });
-  
+
     // Mock onSnapshot to simulate real-time updates
     let snapshotCallback: any = null;
     const mockOnSnapshot = jest.fn((_, callback) => {
       snapshotCallback = callback;
       return jest.fn(); // unsubscribe function
     });
-  
+
     // Mock the Firestore functions
     jest.mock('firebase/firestore', () => ({
       ...jest.requireActual('firebase/firestore'),
@@ -110,7 +117,7 @@ beforeEach(() => {
         await transaction({ get: mockGetDoc });
       })
     }));
-  
+
     // Simulate a Firestore update after word selection
     mockUpdateDoc.mockImplementation(() => {
       if (snapshotCallback) {
@@ -130,7 +137,7 @@ beforeEach(() => {
     });
   });
 
-  
+
 jest.mock('use-sound', () => jest.fn(() => [jest.fn()]));
 
 // Mock stories data
@@ -151,7 +158,12 @@ jest.mock('../stories', () => ({
 
 // Mock speech synthesis
 const mockSynth = {
-    speak: jest.fn(),
+    speak: jest.fn((utt: any) => {
+      // simulate finishing the utterance so the queue can process next
+      if (typeof utt?._emit === 'function') {
+        setTimeout(() => utt._emit('end'), 0);
+      }
+    }),
     cancel: jest.fn(),
     getVoices: jest.fn(() => []),
     addEventListener: jest.fn(),
@@ -169,25 +181,25 @@ describe('Home', () => {
     beforeEach(() => {
       jest.clearAllMocks();
     });
-  
+
     test('renders without crashing', async () => {
         render(<Home />);
         // In test mode we immediately show the first story phrase
         expect(await screen.findByText(/Look in the garden/i)).toBeInTheDocument();
       });
-      
+
       test('initializes with the first story', async () => {
         render(<Home />);
-        
+
         await waitFor(() => {
           expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
         });
       });
-      
+
       test('handles word selection through AAC keyboard', async () => {
-    
+
         let snapshotCallback: any = null;
-        
+
         // Override the onSnapshot mock to capture the callback
         (require('firebase/firestore').onSnapshot as jest.Mock).mockImplementation((_, callback) => {
             snapshotCallback = callback;
@@ -195,10 +207,10 @@ describe('Home', () => {
         });
 
         render(<Home />);
-        
+
         // Wait for initial render
         await screen.findByText(/Look in the garden/i);
-        
+
         // Find and click the mouse button
         const mouseButton = await screen.findByAltText('mouse');
         fireEvent.click(mouseButton);
@@ -223,42 +235,43 @@ describe('Home', () => {
     expect(screen.getByText(/there is a mouse/i)).toBeInTheDocument();
   }, { timeout: 3000 });
       });
-  
+
     test('displays images when words are selected', async () => {
-    // Mock player state
-    jest.spyOn(React, 'useState')
-        .mockImplementationOnce(() => [1, jest.fn()]) // playerNumber
-        .mockImplementationOnce(() => [1, jest.fn()]) // currentTurn
-        .mockImplementationOnce(() => [false, jest.fn()]); // avatarModalOpen
+        // Set up session storage for player
+        sessionStorage.setItem('player-uid', 'test-player-1');
+        sessionStorage.setItem('playerNumber', '1');
 
-    render(<Home />);
-    
-    await waitFor(() => {
-        expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
-    });
+        render(<Home />);
+
+        await waitFor(() => {
+            expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
+        });
     });
 
-  
+
     test('plays sound when a valid AAC word is selected', async () => {
-        // Setup player state and Firebase mocks
-        jest.spyOn(React, 'useState')
-        .mockImplementationOnce(() => [1, jest.fn()]) // playerNumber = 1
-        .mockImplementationOnce(() => [1, jest.fn()]); // currentTurn = 1
-
         // Mock Firestore to return player data
         require('firebase/firestore').getDoc.mockResolvedValue({
         exists: () => true,
         data: () => ({
             currentTurn: 1,
-            player1Id: 'test-player-1'
+            player1Id: 'test-player-1',
+            gameStatus: 'in_progress',
+            currentPhrase: 'Look in the garden, there is a ___'
         })
         });
 
-        // Set session storage
+        // Set session storage to make this player the active player
         sessionStorage.setItem('player-uid', 'test-player-1');
+        sessionStorage.setItem('playerNumber', '1');
 
         // Render the component
         render(<Home />);
+
+        // Wait for the component to load
+        await waitFor(() => {
+            expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
+        });
 
         // Find and click the button
         const mouseButton = await screen.findByAltText('mouse');
@@ -269,15 +282,15 @@ describe('Home', () => {
         expect(mockPlaySound).toHaveBeenCalledWith('mouse');
         });
     });
-  
+
     test('shows "The End!" when all sections are completed', async () => {
       //  Mock Firestore references
-        const mockGameRef = { 
+        const mockGameRef = {
             path: 'games/test123',
             id: 'test123',
             parent: null
         };
-        
+
         const mockPlayersColRef = {
             path: 'games/test123/players',
             id: 'players',
@@ -286,11 +299,11 @@ describe('Home', () => {
 
         // Configure Firestore mocks
         const firestore = require('firebase/firestore');
-        
-        firestore.doc.mockImplementation((path: string | string[]) => 
+
+        firestore.doc.mockImplementation((path: string | string[]) =>
             path?.includes?.('players') ? mockPlayersColRef : mockGameRef
         );
-        
+
         firestore.collection.mockReturnValue(mockPlayersColRef);
 
         // Mock completed game data
@@ -316,7 +329,7 @@ describe('Home', () => {
             {
                 id: 'player2',
                 data: () => ({
-                avatar: '🐻', 
+                avatar: '🐻',
                 playerNumber: 2
                 })
             }
@@ -346,21 +359,86 @@ describe('Home', () => {
             expect(screen.getByText(/the end!/i)).toBeInTheDocument();
         }, { timeout: 3000 });
     });
-  
+
     test('handles invalid word selection gracefully', async () => {
         const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
-        
+
         // Properly mock the Firebase unsubscribe
         const mockUnsubscribe = jest.fn();
         require('firebase/firestore').onSnapshot.mockImplementation(() => mockUnsubscribe);
-        
-        // Mock player setup
-        jest.spyOn(React, 'useState')
-          .mockImplementationOnce(() => [{ playerNumber: 2, currentTurn: 1 }, jest.fn()]);
-        
+
+        // Set session storage for player
+        sessionStorage.setItem('player-uid', 'test-player-2');
+        sessionStorage.setItem('playerNumber', '2');
+
         render(<Home />);
-      
+
+        // Wait for render
+        await waitFor(() => {
+            expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
+        });
+
         alertSpy.mockRestore();
       });
 
+test('only speaks on current player turn', async () => {
+        // Mock the first turn
+        require('firebase/firestore').getDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            currentTurn: 1,
+            player1Id: 'test-player-1',
+            gameStatus: 'in_progress',
+            currentPhrase: 'Look in the garden, there is a ___'
+          })
+        });
+
+        // Set session storage to make this player the active player
+        sessionStorage.setItem('player-uid', 'test-player-1');
+        sessionStorage.setItem('playerNumber', '1');
+
+        // Spy on speechSynthesis.speak
+        const speakSpy = jest.spyOn(window.speechSynthesis as any, 'speak');
+
+        // Render the component
+        render(<Home />);
+
+        // Wait for the component to load
+        await waitFor(() => {
+          expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
+        });
+
+        // Verify speech synthesis was called automatically without user interaction
+        await waitFor(() => {
+          expect(speakSpy).toHaveBeenCalled();
+        });
+
+        // Verify speech was not called on non-active player turn
+        speakSpy.mockClear();
+
+        // Trigger the game document onSnapshot (second subscription) with turn changed to player 2
+        const onSnapshotMock = require('firebase/firestore').onSnapshot as jest.Mock;
+        const gameSnapshotCallback = onSnapshotMock.mock.calls[1]?.[1];
+        expect(typeof gameSnapshotCallback).toBe('function');
+
+        act(() => {
+          gameSnapshotCallback({
+            exists: () => true,
+            data: () => ({
+              currentTurn: 2,
+              player1Id: 'test-player-1',
+              player2Id: 'test-player-2',
+              gameStatus: 'in_progress',
+              currentPhrase: 'Look in the garden, there is a mouse'
+            })
+          });
+        });
+
+        // Wait to ensure no speech occurs after turn changes away from player 1
+        await new Promise((r) => setTimeout(r, 300));
+
+        expect(speakSpy).not.toHaveBeenCalled();
+
+        speakSpy.mockRestore();
+    });
   });
