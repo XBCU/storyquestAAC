@@ -25,7 +25,7 @@ The `Gameplay` page is the core interactive experience of the StoryQuest app. It
 
 The component manages multiple state variables including:
 
-- `phrase`, `completedPhrases`, `currentTurn`, `currentSectionIndex`
+- `phrase`, `completedPhrases`, `currentTurn`, `currentSectionIndex`, `storyCompleted`
 - `selectedAvatar`, `playerAvatars`, `playerNumber`
 - `images`, `completedImages`, `showSparkles`, `ttsReady`
 - `storyCompleted`, `showOverlay`, `difficulty`

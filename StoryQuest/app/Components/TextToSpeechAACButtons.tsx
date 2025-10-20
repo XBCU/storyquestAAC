@@ -1,6 +1,6 @@
 //StoryQuest/app/Components/TextToSpeechAACButtons.tsx
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 interface TextToSpeechProps {
     text: string;
@@ -30,9 +30,10 @@ const TextToSpeechAACButtons: React.FC<TextToSpeechProps> = ({
             <button
                 onClick={handlePlay}
                 disabled={disabled}
-                className={`px-4 py-2 rounded text-white font-bold ${disabled ? 'bg-gray-400 cursor-not-allowed' :
-                        'bg-green-500 hover:bg-green-600'
-                    }`}
+                className={`px-4 py-2 rounded text-white font-patrick-hand font-bold ${
+                    disabled ? 'bg-gray-400 cursor-not-allowed' : 
+                    'bg-green-500 hover:bg-green-600'
+                }`}
             >
                 {disabled ? 'Auto-Reading...' : '▶ Play'}
             </button>
@@ -40,9 +41,10 @@ const TextToSpeechAACButtons: React.FC<TextToSpeechProps> = ({
             <button
                 onClick={handleStop}
                 disabled={disabled} // Disable if no utterance
-                className={`px-4 py-2 rounded text-white font-bold ${disabled ? 'bg-gray-400 cursor-not-allowed' :
-                        'bg-red-500 hover:bg-red-600'
-                    }`}
+                className={`px-4 py-2 rounded font-patrick-hand text-white font-bold ${
+                    disabled ? 'bg-gray-400 cursor-not-allowed' : 
+                    'bg-red-500 hover:bg-red-600'
+                }`}
             >
                 ⏹ Stop
             </button>
