@@ -414,8 +414,21 @@ export default function Home() {
 
   // Auto-speak new phrases only when phrase actually changes
   useEffect(() => {
-    // Don't auto-speak if overlay is showing, voices aren't loaded, phrase is empty
+    // Don't auto-speak if overlay is showing, voices aren't loaded, or phrase is empty
     if (showInitialPlayOverlay || !voicesLoaded || !phrase || phrase.trim() === "") {
+      return;
+    }
+
+    // Only auto-speak for the active player's device
+    let myNumber: number | null = playerNumber;
+    if (myNumber == null && typeof window !== 'undefined') {
+      const fromSession = sessionStorage.getItem('playerNumber');
+      if (fromSession) {
+        const parsed = Number(fromSession);
+        if (!Number.isNaN(parsed)) myNumber = parsed;
+      }
+    }
+    if (myNumber == null || currentTurn == null || myNumber !== currentTurn) {
       return;
     }
 
@@ -440,7 +453,7 @@ export default function Home() {
       // Add to speech queue
       addToSpeechQueue(utterance);
     }
-  }, [phrase, showInitialPlayOverlay, voicesLoaded, addToSpeechQueue]);
+  }, [phrase, showInitialPlayOverlay, voicesLoaded, addToSpeechQueue, playerNumber, currentTurn]);
 
   // Handle TTS button actions from TextToSpeechAACButtons component
   const handleTTSButtonPress = useCallback((action: 'play' | 'stop', text: string) => {
