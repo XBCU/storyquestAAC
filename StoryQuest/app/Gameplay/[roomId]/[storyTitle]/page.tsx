@@ -10,6 +10,7 @@ import TextToSpeechAACButtons from "../../../Components/TextToSpeechAACButtons";
 import { motion, AnimatePresence } from "framer-motion";
 import CompletionPage from "../../../CompletionPage/page";
 // import useAACSounds from "@/Components/useAACSounds";
+import useSpeechQueue, { getPreferredVoice } from "../../../Components/useSpeechQueue";
 import { db } from "../../../../firebaseControls/firebaseConfig";
 import {
   doc,
@@ -26,35 +27,6 @@ import {
 
 const availableAvatars = ["🐯", "🐻", "🦄", "🐰", "🐬", "🦋"];
 
-const loadPreferredVoices = (): SpeechSynthesisVoice[] => {
-  const voices = window.speechSynthesis.getVoices();
-  return voices.filter((v) => v.lang.includes("en-US"));
-};
-
-const preferredVoices = ["Google US English", "Samantha", "Microsoft Zira Desktop", "Microsoft Aria Online (Natural)", "Google US Female"];
-
-const getPreferredVoice = (): SpeechSynthesisVoice | null => {
-  // Ensure voices are loaded
-  let voices = loadPreferredVoices();
-
-  // If no voices loaded yet, trigger loading and try again
-  if (voices.length === 0) {
-    window.speechSynthesis.getVoices(); // Trigger voice loading
-    voices = loadPreferredVoices();
-  }
-
-  // Still no voices? Wait for voiceschanged event
-  if (voices.length === 0) {
-    return null; // Will be handled by the component's voice loading logic
-  }
-
-  for (const name of preferredVoices) {
-    const match = voices.find((v) => v.name === name);
-    if (match) return match;
-  }
-  // Fallback to first US English voice if none match
-  return voices[0] || null;
-};
 
 // getImageAnimation: Returns a reusable animation configuration for images.
 const getImageAnimation = () => ({
@@ -66,7 +38,7 @@ const getImageAnimation = () => ({
 
 const getNumPhrases = (difficulty: "easy" | "medium" | "hard") => {
   if (difficulty === "easy") return 4;
-  if (difficulty === "medium") return 8;
+  if (difficulty === "medium" ) return 8;
   if (difficulty === "hard") return 12;
   return 8; // default
 };
@@ -130,30 +102,9 @@ export default function Home() {
   const [highlightedPlayer, setHighlightedPlayer] = useState<number | null>(
     null
   );
-  const [speechQueue, setSpeechQueue] = useState<SpeechSynthesisUtterance[]>([]);
   const [isFinalStoryRead, setIsFinalStoryRead] = useState(false);
-  const [voicesLoaded, setVoicesLoaded] = useState(false);
-  const [isProcessingSpeech, setIsProcessingSpeech] = useState(false);
+  const { addToSpeechQueue, stopSpeech, isProcessingSpeech, voicesLoaded } = useSpeechQueue();
   const lastPhraseRef = useRef<string>("");
-
-  // Handle voice loading
-  useEffect(() => {
-    const handleVoicesChanged = () => {
-      setVoicesLoaded(true);
-    };
-
-    // Check if voices are already loaded
-    if (window.speechSynthesis.getVoices().length > 0) {
-      setVoicesLoaded(true);
-    } else {
-      // Listen for voices to load
-      window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
-    }
-
-    return () => {
-      window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
-    };
-  }, []);
 
   //Grabbing roomID and story title from URL
   //roomID stores in firestore
@@ -189,7 +140,7 @@ export default function Home() {
         const prefVoice = getPreferredVoice();
         if (prefVoice) utterance.voice = prefVoice;
 
-        setSpeechQueue(queue => [...queue, utterance]);
+        addToSpeechQueue(utterance);
 
         // Visual highlight
         setHighlightedPlayer(playerNum);
@@ -206,7 +157,7 @@ export default function Home() {
         setTimeout(() => setHighlightedPlayer(null), 5000); //clears after 5 seconds
       }
     },
-    [playerAvatars]
+    [playerAvatars, addToSpeechQueue, turnReminders]
   );
 
   useEffect(() => {
@@ -375,7 +326,7 @@ export default function Home() {
         setPlayerNumber(1);
         return;
       }
-      // ——— then slot 2 ———
+      // ���—— then slot 2 ———
       if (!data.player2Id && roomNumPlayers > 1) {
         tx.update(gameRef, { player2Id: myId });
         setPlayerNumber(2);
@@ -437,10 +388,10 @@ export default function Home() {
 
       // Add to speech queue instead of direct play
       setTimeout(() => {
-        setSpeechQueue(queue => [...queue, finalUtterance]);
+        addToSpeechQueue(finalUtterance);
       }, 1500);
     }
-  }, [storyCompleted, isFinalStoryRead, completedPhrases]);
+  }, [storyCompleted, isFinalStoryRead, completedPhrases, addToSpeechQueue]);
 
   const speakCurrentPhrase = useCallback(() => {
     setShowInitialPlayOverlay(false);
@@ -456,43 +407,10 @@ export default function Home() {
       setIsAutoReading(false);
     });
     // Add the phrase to the front of the speech queue
-      if (phrase && currentTurn === playerNumber){
-          setSpeechQueue(queue => [u, ...queue]);
-      }
-  }, [phrase]);
+    addToSpeechQueue(u, true); // true = add to front
 
-  // useEffect to process speech queue
-  useEffect(() => {
-    console.log("SPEECH QUEUE", speechQueue);
-    // Only proceed if there are utterances to speak, we're not already processing, and voices are loaded
-    if (speechQueue.length > 0 && !isProcessingSpeech && voicesLoaded) {
-      setIsProcessingSpeech(true);
+  }, [phrase, currentTurn, playerNumber, addToSpeechQueue]);
 
-      // Get the first utterance from the queue
-      const utterance = speechQueue[0];
-
-      // Define event handlers
-      const handleEnd = () => {
-        console.log("Finished utterance:", utterance);
-        setSpeechQueue((prevQueue) => prevQueue.slice(1));
-        setIsProcessingSpeech(false);
-      };
-
-      const handleError = (e: SpeechSynthesisErrorEvent) => {
-        console.warn("Speech synthesis utterance error:", e);
-        console.warn("Problematic utterance:", utterance);
-        setSpeechQueue((prevQueue) => prevQueue.slice(1));
-        setIsProcessingSpeech(false);
-      };
-
-      // Add event listeners
-      utterance.addEventListener('end', handleEnd);
-      utterance.addEventListener('error', handleError);
-
-      // Speak the utterance
-      window.speechSynthesis.speak(utterance);
-    }
-  }, [speechQueue, isProcessingSpeech, voicesLoaded]);
 
   // Auto-speak new phrases only when phrase actually changes
   useEffect(() => {
@@ -520,9 +438,9 @@ export default function Home() {
       utterance.volume = 1.0;
 
       // Add to speech queue
-      setSpeechQueue(queue => [...queue, utterance]);
+      addToSpeechQueue(utterance);
     }
-  }, [phrase, showInitialPlayOverlay, voicesLoaded]);
+  }, [phrase, showInitialPlayOverlay, voicesLoaded, addToSpeechQueue]);
 
   // Handle TTS button actions from TextToSpeechAACButtons component
   const handleTTSButtonPress = useCallback((action: 'play' | 'stop', text: string) => {
@@ -538,14 +456,12 @@ export default function Home() {
       utterance.volume = 1.0;
 
       // Add to front of queue for immediate playback
-      setSpeechQueue(queue => [utterance, ...queue]);
+      addToSpeechQueue(utterance, true);
     } else if (action === 'stop') {
       // Clear the speech queue and stop current speech
-      window.speechSynthesis.cancel();
-      setSpeechQueue([]);
-      setIsProcessingSpeech(false);
+      stopSpeech();
     }
-  }, []);
+  }, [addToSpeechQueue, stopSpeech]);
 
   // Word has been selected from "AAC board", replace blank, add in visual element, update the firestore
   const handleWordSelect = async (word: string) => {
@@ -594,12 +510,11 @@ export default function Home() {
       const maxPlayers = data.maxPlayers || 4;
       const nextTurn = currentTurn === maxPlayers ? 1 : currentTurn + 1;
       const nextSectionIndex = currentSectionIndex + 1;
-      const isLastSection = nextSectionIndex >= numberOfPhrasesForGame; // Still use numberOfPhrasesForGame for the final check
+      const isLastSection = nextSectionIndex >= numberOfPhrasesForGame;
       const nextPhrase = isLastSection
         ? "The End!"
-        : trimmedSections[nextSectionIndex]?.phrase || "The End!"; // Access phrase from trimmedSections
+        : trimmedSections[nextSectionIndex]?.phrase || "The End!";
 
-      //if game already exists just update game document, else create new game document
       const gameDataToSave = {
         completedPhrases: [...completedPhrases, newPhrase],
         completedImages: [...completedImages, newImage],
@@ -613,13 +528,11 @@ export default function Home() {
         currentTurn: nextTurn,
         lastUpdated: new Date(),
         gameStatus: isLastSection ? "completed" : "in_progress",
-        numberOfPhrases: numberOfPhrasesForGame, // Ensure this is saved
+        numberOfPhrases: numberOfPhrasesForGame,
       };
       await setDoc(gameRef, gameDataToSave, { merge: true });
-      // await updateDoc(gameRef, gameDataToSave);
       if (!isLastSection) {
         setCurrentSectionIndex(nextSectionIndex);
-        // Set the next phrase from the trimmed sections
         setPhrase(trimmedSections[nextSectionIndex]?.phrase || "");
       } else {
         setPhrase("The End!");
@@ -637,10 +550,6 @@ export default function Home() {
       return;
     }
 
-    // Don't speak the individual word - let the auto-reading speak the completed phrase
-    // This prevents duplication since the completed phrase will be auto-spoken
-
-    // Call the function that updates the game state in Firestore (this will trigger phrase change and auto-reading)
     handleWordSelect(word);
 
     if (inactivityTimer) {
@@ -664,7 +573,6 @@ export default function Home() {
           className="flex items-center justify-center w-full h-full overflow-hidden bg-yellow-100"
           style={{ width: "100vw", height: "100vh" }}
         >
-          {/* Avatar modal - now centered in iPad viewport */}
           {avatarModalOpen ? (
             <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
               <div className="bg-white p-6 rounded-lg w-[90vw] max-w-md mx-auto">
@@ -736,28 +644,18 @@ export default function Home() {
           ) : (
             <button
               onClick={speakCurrentPhrase}
-              className="relative text-9xl p-10 bg-gradient-to-tr from-purple-400 via-pink-500 to-red-500 text-white rounded-full shadow-2xl ring-4 ring-offset-4 ring-purple-300
-            transform transition duration-300 ease-in-out hover:scale-110 active:scale-95 animate-pulse"
+              className="relative text-9xl p-10 bg-gradient-to-tr from-purple-400 via-pink-500 to-red-500 text-white rounded-full shadow-2xl ring-4 ring-offset-4 ring-purple-300 transform transition duration-300 ease-in-out hover:scale-110 active:scale-95 animate-pulse"
               aria-label="Press to start reading"
             >
               ▶️
-              <span
-                className="
-              absolute inset-0 rounded-full
-              bg-white bg-opacity-10
-              animate-ping
-              pointer-events-none
-            "
-              />
+              <span className="absolute inset-0 rounded-full bg-white bg-opacity-10 animate-ping pointer-events-none" />
             </button>
           )}
         </div>
       )}
 
       <div className="fixed inset-0 flex bg-gray-900 overflow-hidden">
-        {/* Left Panel: */}
         <div className="w-[40%] h-full bg-[hsl(45,93%,83%)] p-3 flex flex-col justify-between items-center rounded-lg shadow-lg border-[8px] border-[#e09f3e] overflow-hidden">
-          {/* Player turns display */}
           {playerNumber && (
             <div className="flex flex-col items-center justify-center mb-2 w-full">
               <div className="w-full bg-yellow-100 rounded-lg p-2 shadow-inner">
@@ -766,19 +664,15 @@ export default function Home() {
                     .sort(([a], [b]) => Number(a) - Number(b))
                     .map(([num, avatar]) => {
                       const slot = Number(num);
-                      const highlight =
-                        slot === currentTurn && slot === playerNumber;
+                      const highlight = slot === currentTurn && slot === playerNumber;
                       return (
                         <div key={num} className="flex flex-col items-center">
                           <span
-                            className={`
-                              ${highlight
+                            className={`${
+                              highlight
                                 ? "text-7xl p-4 border-4 ring-4 ring-yellow-300 bg-green-500 rounded-full scale-150 animate-pulse glow"
                                 : "text-5xl p-2 border-2 border-gray-400"
-                              }
-                              rounded-full
-                              transition-transform duration-300 ease-in-out
-                            `}
+                            } rounded-full transition-transform duration-300 ease-in-out`}
                             style={{
                               transform: highlight ? "scale(1.5)" : "scale(1)",
                               zIndex: highlight ? 10 : 1,
@@ -799,12 +693,9 @@ export default function Home() {
 
               <div className="mt-2 text-center w-full">
                 {playerNumber === currentTurn ? (
-                  <p
-                    className={`text-2xl font-extrabold ${highlightedPlayer === currentTurn
-                      ? "text-red-600 animate-pulse"
-                      : "text-green-600"
-                      }`}
-                  >
+                  <p className={`text-2xl font-extrabold ${
+                    highlightedPlayer === currentTurn ? "text-red-600 animate-pulse" : "text-green-600"
+                  }`}>
                     {highlightedPlayer === currentTurn
                       ? "⚠️ YOUR TURN! (PLAY NOW!)"
                       : "YOUR TURN!"}
@@ -818,37 +709,33 @@ export default function Home() {
             </div>
           )}
           <div
-            className={`aac-blocking-container ${blockOverlay ? "blocked" : ""
-              }`}
+            className={`aac-blocking-container ${blockOverlay ? "blocked" : ""}`}
             style={{ height: "60%" }}
           >
             <AACKeyboard
               onSelect={handleAACSelect}
               symbols={
-                trimmedSections[currentSectionIndex] // Use trimmedSections here
-                  ? Object.entries(
-                    trimmedSections[currentSectionIndex].words
-                  ).map(([word, data]) => ({
-                    word: word,
-                    image: `/images/${data.image}`,
-                    displayText: word,
-                  }))
+                trimmedSections[currentSectionIndex]
+                  ? Object.entries(trimmedSections[currentSectionIndex].words).map(([word, data]) => ({
+                      word: word,
+                      image: `/images/${data.image}`,
+                      displayText: word,
+                    }))
                   : []
               }
               backgroundColor={currentStory?.colorTheme.backgroundColor}
               buttonColor={currentStory?.colorTheme.buttonColor}
-              blockButtons={blockOverlay} // Last phrase "The End!"
+              blockButtons={blockOverlay}
             />
           </div>
 
           <TextToSpeechAACButtons
             text={phrase}
-            disabled={isAutoReading} // Pass the auto-read state
+            disabled={isAutoReading}
             onButtonPress={handleTTSButtonPress}
           />
         </div>
 
-        {/* Right Panel: Game Scene */}
         <div
           className="w-[60%] h-full relative bg-cover bg-center flex justify-center items-center overflow-hidden"
           style={{
@@ -858,21 +745,13 @@ export default function Home() {
             backgroundRepeat: "no-repeat",
           }}
         >
-          {/* Completed Phrases (positioned with the text) */}
-          {/* Storybook Text Display */}
-          <div className="absolute bottom-0 left-0 right-0 min-h-[120px] bg-[url('/images/parchment-texture.png')] bg-cover p-4 border-t-8 border-amber-800 shadow-[0_-10px_30px_rgba(0,0,0,0.3)]"
-            style={{
-              zIndex: 10
-            }}
-          >
-            {/* Decorative scroll ends */}
+          <div className="absolute bottom-0 left-0 right-0 min-h-[120px] bg-[url('/images/parchment-texture.png')] bg-cover p-4 border-t-8 border-amber-800 shadow-[0_-10px_30px_rgba(0,0,0,0.3)]" style={{ zIndex: 10 }}>
             <div className="absolute -top-6 left-4 right-4 flex justify-between pointer-events-none">
               <span className="text-5xl text-amber-800">✧</span>
               <span className="text-5xl text-amber-800">✧</span>
             </div>
 
             <div className="max-w-full mx-auto">
-              {/* Completed story phrases */}
               <div className="flex flex-col gap-1">
                 {phrase !== "The End!" ? (
                   <>
@@ -895,7 +774,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Current phrase with magical effects */}
             <div className="relative">
               <span className="text-4xl font-bold font-patrick-hand text-amber-900 animate-pulse">
                 {phrase}
@@ -904,15 +782,13 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Animated Images (sparkles removed) */}
           <AnimatePresence>
             {completedImages.map((image, index) => {
               const imageData = trimmedSections
                 .flatMap((section) => Object.values(section.words))
-                .find((data) => `/images/${data.image}` === image.src); // Use trimmedSections
-              const effect = imageData?.effect || "none"; // Get the effect, default to 'none'
-              let effectComponent = null;
-              effectComponent = (
+                .find((data) => `/images/${data.image}` === image.src);
+              const effect = imageData?.effect || "none";
+              let effectComponent = (
                 <motion.img
                   key={`normal-${index}`}
                   src={image.src}
@@ -921,7 +797,6 @@ export default function Home() {
                   {...getImageAnimation()}
                 />
               );
-              {/*}*/ }
 
               return (
                 <div
@@ -938,8 +813,6 @@ export default function Home() {
             })}
           </AnimatePresence>
 
-          {/* Speech handled by main queue system - no separate component needed */}
-
           {showOverlay && (
             <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center">
               <CompletionPage />
@@ -950,3 +823,4 @@ export default function Home() {
     </>
   );
 }
+
