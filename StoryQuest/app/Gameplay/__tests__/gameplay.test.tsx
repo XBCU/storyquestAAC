@@ -369,4 +369,48 @@ describe('Home', () => {
         alertSpy.mockRestore();
       });
 
+    test('only speaks on current player turn', async () => {
+        // Mock Firestore to return player data for turn 1
+        require('firebase/firestore').getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                currentTurn: 1,
+                player1Id: 'test-player-1',
+                gameStatus: 'in_progress',
+                currentPhrase: 'Look in the garden, there is a ___'
+            })
+        });
+
+        // Set session storage to simulate being player 2 (not the active player)
+        sessionStorage.setItem('player-uid', 'test-player-2');
+        sessionStorage.setItem('playerNumber', '2');
+
+        // Render the component
+        const { rerender } = render(<Home />);
+
+        // Wait for the component to load
+        await waitFor(() => {
+            expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
+        });
+
+        // Verify that speak was NOT called since it's not this player's turn
+        expect(mockSynth.speak).not.toHaveBeenCalled();
+
+        // Now, switch to player 1's turn
+        sessionStorage.setItem('player-uid', 'test-player-1');
+        sessionStorage.setItem('playerNumber', '1');
+
+        // Rerender the component with the updated session storage
+        rerender(<Home />);
+
+        // Wait for the component to potentially re-evaluate effects
+        await waitFor(() => {
+            // The text should still be there
+            expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
+        });
+
+        // Verify that speak WAS called now that it is the correct player's turn
+        expect(mockSynth.speak).toHaveBeenCalled();
+    });
+
   });
