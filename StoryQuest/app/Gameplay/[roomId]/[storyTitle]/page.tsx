@@ -105,6 +105,7 @@ export default function Home() {
   const [isFinalStoryRead, setIsFinalStoryRead] = useState(false);
   const { addToSpeechQueue, stopSpeech, isProcessingSpeech, voicesLoaded } = useSpeechQueue();
   const lastPhraseRef = useRef<string>("");
+  const [lastSelectorNumber, setLastSelectorNumber] = useState<number | null>(null);
 
   //Grabbing roomID and story title from URL
   //roomID stores in firestore
@@ -232,9 +233,20 @@ export default function Home() {
           }, 3000);
         }
 
-        const lastWord = gameData.lastWordSelected?.word;
-        if (lastWord && lastWord !== lastPlayedWord) {
-          setLastPlayedWord(lastWord);
+        const lastSel = gameData.lastWordSelected;
+        if (lastSel) {
+          // Prefer explicit playerNumber if present; otherwise, derive from avatar mapping
+          if (typeof lastSel.playerNumber === 'number') {
+            setLastSelectorNumber(lastSel.playerNumber);
+          } else if (lastSel.player) {
+            const entry = Object.entries(playerAvatars).find(([num, avatar]) => avatar === lastSel.player);
+            setLastSelectorNumber(entry ? Number(entry[0]) : null);
+          }
+
+          const lastWord = lastSel?.word;
+          if (lastWord && lastWord !== lastPlayedWord) {
+            setLastPlayedWord(lastWord);
+          }
         }
 
         if (gameData.storyTitle && !currentStory) {
@@ -371,6 +383,19 @@ export default function Home() {
   // useEffect for the final story
   useEffect(() => {
     if (storyCompleted && !isFinalStoryRead) {
+      // Only the device belonging to the last selector should read the final story
+      let myNumber: number | null = playerNumber;
+      if (myNumber == null && typeof window !== 'undefined') {
+        const fromSession = sessionStorage.getItem('playerNumber');
+        if (fromSession) {
+          const parsed = Number(fromSession);
+          if (!Number.isNaN(parsed)) myNumber = parsed;
+        }
+      }
+      if (myNumber == null || lastSelectorNumber == null || myNumber !== lastSelectorNumber) {
+        return;
+      }
+
       setIsFinalStoryRead(true);
 
       // Combine all phrases into one complete story
@@ -381,9 +406,15 @@ export default function Home() {
       if (prefVoice) finalUtterance.voice = prefVoice;
 
       // Set a function to show the overlay when the narration finishes
-      finalUtterance.onend = () => {
+      finalUtterance.onend = async () => {
         console.log("Final story narration complete.");
         setShowOverlay(true);
+        try {
+          const gameRef = doc(db, "games", roomId);
+          await setDoc(gameRef, { ttsDone: true }, { merge: true });
+        } catch (e) {
+          console.warn("Failed to mark ttsDone:", e);
+        }
       };
 
       // Add to speech queue instead of direct play
@@ -391,7 +422,7 @@ export default function Home() {
         addToSpeechQueue(finalUtterance);
       }, 1500);
     }
-  }, [storyCompleted, isFinalStoryRead, completedPhrases, addToSpeechQueue]);
+  }, [storyCompleted, isFinalStoryRead, completedPhrases, addToSpeechQueue, playerNumber, lastSelectorNumber]);
 
   const speakCurrentPhrase = useCallback(() => {
     setShowInitialPlayOverlay(false);
@@ -504,6 +535,7 @@ export default function Home() {
       word,
       timestamp: new Date(),
       player: playerAvatars[currentTurn],
+      playerNumber: currentTurn,
     };
 
     const newImage = {
