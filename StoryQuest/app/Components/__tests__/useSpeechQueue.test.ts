@@ -86,4 +86,11 @@ describe('useSpeechQueue', () => {
 
     expect(mockSpeechSynthesis.cancel).toHaveBeenCalledTimes(1);
   });
+
+
+});
+
+// clean up tests
+afterAll(() => {
+  delete (global as any).SpeechSynthesisUtterance;
 });
