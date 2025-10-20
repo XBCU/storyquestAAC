@@ -7,21 +7,8 @@ import stories, { Story } from "../../stories"; //import the stories interface
 import { useParams } from "next/navigation"; //To retrieve story based on room settings
 import AACKeyboard from "../../../Components/AACKeyboard";
 import TextToSpeechAACButtons from "../../../Components/TextToSpeechAACButtons";
-import CompletedStory from "@/Components/CompletedStory";
-import { motion, AnimatePresence, rgba } from "framer-motion";
-import {
-  SpinEffect,
-  PulseEffect,
-  FadeEffect,
-  SideToSideEffect,
-  UpAndDownEffect,
-  ScaleUpEffect,
-  BounceEffect,
-  FlipEffect,
-  SlideAcrossEffect,
-} from "../../../Components/AnimationUtils";
+import { motion, AnimatePresence } from "framer-motion";
 import CompletionPage from "../../../CompletionPage/page";
-// import useAACSounds from "@/Components/useAACSounds";
 import useSpeechQueue, { getPreferredVoice } from "../../../Components/useSpeechQueue";
 import { db } from "../../../../firebaseControls/firebaseConfig";
 import {
@@ -29,7 +16,6 @@ import {
   getDoc,
   // addDoc,
   setDoc,
-  updateDoc,
   onSnapshot,
   getDocs,
   serverTimestamp,
@@ -108,9 +94,7 @@ export default function Home() {
   const [blockOverlay, setBlockOverlay] = useState<boolean>(false);
   const [showInitialPlayOverlay, setShowInitialPlayOverlay] = useState(true);
   const [isAutoReading, setIsAutoReading] = useState(false);
-  const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(
-    null
-  );
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [highlightedPlayer, setHighlightedPlayer] = useState<number | null>(
     null
   );
@@ -184,7 +168,7 @@ export default function Home() {
 
   // NEW: Dedicated effect for turn timeout announcements
   useEffect(() => {
-    if (!currentTurn || !playerAvatars[currentTurn] || storyCompleted) return;
+    if (!currentTurn || !playerAvatars[currentTurn]) return;
 
     // Clear previous timer
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -201,7 +185,7 @@ export default function Home() {
     return () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
-  }, [currentTurn, playerAvatars, playerNumber, announcePlayer, storyCompleted]);
+  }, [currentTurn, playerAvatars, playerNumber, announcePlayer]);
 
   //This is the snapshot used to retrieve game state in firestore
   useEffect(() => {
@@ -438,6 +422,7 @@ export default function Home() {
 
   const speakCurrentPhrase = useCallback(() => {
     setShowInitialPlayOverlay(false);
+    lastPhraseRef.current = phrase; // Mark this phrase as already read to prevent auto-reading duplication
 
     const u = new SpeechSynthesisUtterance(phrase);
     // Assign preferred voice to the utterance
