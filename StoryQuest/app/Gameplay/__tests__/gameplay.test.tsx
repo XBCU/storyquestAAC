@@ -1,13 +1,20 @@
 class MockSpeechSynthesisUtterance {
     text: string;
+    private listeners: Record<string, Array<(...args: any[]) => void>> = {};
     constructor(text: string) {
       this.text = text;
     }
-    // stub out the event API so addEventListener won’t crash
+    // store listeners so tests can emit events
     addEventListener(type: string, listener: (...args: any[]) => void) {
+      if (!this.listeners[type]) this.listeners[type] = [];
+      this.listeners[type].push(listener);
     }
     removeEventListener(type: string, listener: (...args: any[]) => void) {
-
+      if (!this.listeners[type]) return;
+      this.listeners[type] = this.listeners[type].filter((l) => l !== listener);
+    }
+    _emit(type: string, ...args: any[]) {
+      (this.listeners[type] || []).forEach((l) => l(...args));
     }
   }
 
@@ -151,7 +158,12 @@ jest.mock('../stories', () => ({
 
 // Mock speech synthesis
 const mockSynth = {
-    speak: jest.fn(),
+    speak: jest.fn((utt: any) => {
+      // simulate finishing the utterance so the queue can process next
+      if (typeof utt?._emit === 'function') {
+        setTimeout(() => utt._emit('end'), 0);
+      }
+    }),
     cancel: jest.fn(),
     getVoices: jest.fn(() => []),
     addEventListener: jest.fn(),
@@ -369,48 +381,64 @@ describe('Home', () => {
         alertSpy.mockRestore();
       });
 
-    test('only speaks on current player turn', async () => {
-        // Mock Firestore to return player data for turn 1
+test('only speaks on current player turn', async () => {
+        // Mock the first turn
         require('firebase/firestore').getDoc.mockResolvedValue({
-            exists: () => true,
-            data: () => ({
-                currentTurn: 1,
-                player1Id: 'test-player-1',
-                gameStatus: 'in_progress',
-                currentPhrase: 'Look in the garden, there is a ___'
-            })
+          exists: () => true,
+          data: () => ({
+            currentTurn: 1,
+            player1Id: 'test-player-1',
+            gameStatus: 'in_progress',
+            currentPhrase: 'Look in the garden, there is a ___'
+          })
         });
 
-        // Set session storage to simulate being player 2 (not the active player)
-        sessionStorage.setItem('player-uid', 'test-player-2');
-        sessionStorage.setItem('playerNumber', '2');
-
-        // Render the component
-        const { rerender } = render(<Home />);
-
-        // Wait for the component to load
-        await waitFor(() => {
-            expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
-        });
-
-        // Verify that speak was NOT called since it's not this player's turn
-        expect(mockSynth.speak).not.toHaveBeenCalled();
-
-        // Now, switch to player 1's turn
+        // Set session storage to make this player the active player
         sessionStorage.setItem('player-uid', 'test-player-1');
         sessionStorage.setItem('playerNumber', '1');
 
-        // Rerender the component with the updated session storage
-        rerender(<Home />);
+        // Spy on speechSynthesis.speak
+        const speakSpy = jest.spyOn(window.speechSynthesis as any, 'speak');
 
-        // Wait for the component to potentially re-evaluate effects
+        // Render the component
+        render(<Home />);
+
+        // Wait for the component to load
         await waitFor(() => {
-            // The text should still be there
-            expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
+          expect(screen.getByText(/Look in the garden/i)).toBeInTheDocument();
         });
 
-        // Verify that speak WAS called now that it is the correct player's turn
-        expect(mockSynth.speak).toHaveBeenCalled();
-    });
+        // Verify speech synthesis was called automatically without user interaction
+        await waitFor(() => {
+          expect(speakSpy).toHaveBeenCalled();
+        });
 
+        // Verify speech was not called on non-active player turn
+        speakSpy.mockClear();
+
+        // Trigger the game document onSnapshot (second subscription) with turn changed to player 2
+        const onSnapshotMock = require('firebase/firestore').onSnapshot as jest.Mock;
+        const gameSnapshotCallback = onSnapshotMock.mock.calls[1]?.[1];
+        expect(typeof gameSnapshotCallback).toBe('function');
+
+        act(() => {
+          gameSnapshotCallback({
+            exists: () => true,
+            data: () => ({
+              currentTurn: 2,
+              player1Id: 'test-player-1',
+              player2Id: 'test-player-2',
+              gameStatus: 'in_progress',
+              currentPhrase: 'Look in the garden, there is a mouse'
+            })
+          });
+        });
+
+        // Wait to ensure no speech occurs after turn changes away from player 1
+        await new Promise((r) => setTimeout(r, 300));
+
+        expect(speakSpy).not.toHaveBeenCalled();
+
+        speakSpy.mockRestore();
+    });
   });

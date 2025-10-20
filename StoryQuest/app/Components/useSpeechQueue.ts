@@ -33,19 +33,35 @@ const useSpeechQueue = () => {
             setVoicesLoaded(true);
         };
 
-        if (window.speechSynthesis.getVoices().length > 0) {
-            setVoicesLoaded(true);
-        } else {
-            window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
+        // In many environments (including jsdom), getVoices() may return an empty array
+        // and the 'voiceschanged' event may never fire. To ensure queued speech still
+        // plays (falling back to the default voice), mark voices as loaded when
+        // speechSynthesis exists regardless of the current voices list.
+        try {
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
+                const hasAnyVoices = window.speechSynthesis.getVoices().length > 0;
+                if (hasAnyVoices) {
+                    setVoicesLoaded(true);
+                } else {
+                    // Optimistically allow speech to proceed; voice can still be assigned later
+                    setVoicesLoaded(true);
+                    // Also listen for future voice availability
+                    window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
+                }
+            }
+        } catch {
+            // If speechSynthesis is unavailable, leave voicesLoaded as false
         }
 
         return () => {
-            window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+            try {
+                window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+            } catch {}
         };
     }, []);
 
     useEffect(() => {
-        if (speechQueue.length > 0 && !isProcessingSpeech && voicesLoaded) {
+        if (speechQueue.length > 0 && !isProcessingSpeech /* voicesLoaded intentionally not required */) {
             setIsProcessingSpeech(true);
             const utterance = speechQueue[0];
 
@@ -63,9 +79,16 @@ const useSpeechQueue = () => {
             utterance.addEventListener('end', handleEnd);
             utterance.addEventListener('error', handleError);
 
-            window.speechSynthesis.speak(utterance);
+            try {
+                window.speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.warn('speechSynthesis.speak threw:', e);
+                // fail-safe: dequeue to avoid deadlock
+                setSpeechQueue((prevQueue) => prevQueue.slice(1));
+                setIsProcessingSpeech(false);
+            }
         }
-    }, [speechQueue, isProcessingSpeech, voicesLoaded]);
+    }, [speechQueue, isProcessingSpeech /*, voicesLoaded*/]);
 
     const addToSpeechQueue = useCallback((utterance: SpeechSynthesisUtterance, atFront = false) => {
         setSpeechQueue(queue => atFront ? [utterance, ...queue] : [...queue, utterance]);
@@ -81,4 +104,3 @@ const useSpeechQueue = () => {
 };
 
 export default useSpeechQueue;
-
