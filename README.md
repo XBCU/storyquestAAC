@@ -3,30 +3,24 @@
 <div align="center">
 
 # Storyquest: Teamwork Prevails!
-[[Report Issue on Jira](https://temple-cis-projects-in-cs.atlassian.net/jira/software/c/projects/AGTB/issues?jql=project%20%3D%20%22AGTB%22%20ORDER%20BY%20created%20DESC)]
-[[Deploy Docs](https://github.com/Capstone-Projects-2025-Spring/project-aac-game-team-b)]
-[[Documentation Website Link](https://capstone-projects-2025-spring.github.io/project-aac-game-team-b/)]
+
+[![Play StoryQuest](https://img.shields.io/badge/Play-StoryQuest-ff6f61?style=for-the-badge&logo=gamepad&logoColor=white)](https://storyquest--storyquest-fcdc2.us-east4.hosted.app) 
+
 
 </div>
 
-## Project Overview
 
-We will develop a game, called "Storyquest: Teamwork Prevails", that aims to maximize communication between children who use 
-Augmentative and Alternative Communication (AAC), and children who communicate verbally. This game will be turn-based, and use pictures to encourage communication and collaboration among players.
+## Project Abstract
 
-## Keywords
- - AAC - Augmentative and Alternative Communication
- - Cloze Phrase - A common technique leveraged in speech therapy. Phrases or sentences with words missing that are intended to be filled in by the reader/listener. Cloze phrases are used to assess reading comprehension and to help students learn to predict word meanings. 
+Story Quest is a web-based, tablet-friendly "cloze phrase"[^cloze] style story game designed for children to learn how to collaborate, with special considerations regarding players who use Augmentative and Alternative Communication (ACC)[^aac].
+In order to promote social inclusion and empathy, the game relies on teammates all communicating and working as a team in order to get the story complete. This is done so AAC users don't feel ostracized and are actively needed in the group.
+An easily accessible AAC-friendly interface ensures easy participation. The interface dynamically changes throughout the game, indicating player choice, turn taking, story progress, a final read through, and an auto redirect completion page.
+
+[^cloze]: A phrase or sentence with one or more words removed that the reader or listener is asked to fill in. Commonly used in speech therapy and education to assess comprehension and help predict word meanings.
+[^aac]: Methods and tools used to support expressive communication for people with speech or language impairments. Examples include picture boards, speech-generating devices, and gesture-based systems.
 
 ## Hosted Link
-These are the active domains you can visit:
-User Friendly Domain (set to shut down in June):
-https://storyquest.world
-
-OR
-
-The original Firebase Domain (which Temple will take over after the final demo):
-https://project-aac-game-team-b--storyquest-fcdc2.us-central1.hosted.app
+https://storyquest--storyquest-fcdc2.us-east4.hosted.app
 
 ## How to run locally
 **Be sure to have your Firebase configured after doing these steps, otherwise some features may not work as intended!**
@@ -49,11 +43,6 @@ The following steps are for the initial setup:
 - Install the SDK and initialize FireBase with whatever JavaScript framework you are using, we used Nexts.js.
 - After setup, be sure to pick which services you need for the project, we used the App Hosting (NOT Hosting which will not work with a Next.js Project) and FireBase FireStore.
 
-## Project Abstract
-
-This project is a web-based, tablet-friendly "cloze phrase" style story game designed for children to learn how to collaborate, with special considerations regarding players who use Augmentative and Alternative Communication (ACC). 
-In order to promote social inclusion and empathy, the game relies on teammates all communicating and working as a team in order to get the story complete. This is done so AAC users don't feel ostracized and are actively needed in the group. 
-An easily accessible AAC-friendly interface ensures easy participation. The interface dynamically changes throughout the game, indicating player choice, turn taking, story progress, a final read through, and an auto redirect completion page.
 
 
 ## High Level Requirement
@@ -133,42 +122,42 @@ Social interactions for development remains important at the grade-school level.
 <tr>
     <td align="center">
         <a href="https://github.com/nathaliavalli">
-            <img src="img/nathalia_valli.JPG" width="100" height="120" alt="nathalia_valli.jpeg"/>
+            <img src="https://raw.githubusercontent.com/Civic-Interactions-Lab/storyquest/refs/heads/main/documentation/static/img/nathalia_valli.JPG" width="100" height="120" alt="nathalia_valli.jpeg"/>
             <br />
             <sub><b>Nathalia Valli</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/HarpinderFeelsLikeCoding">
-            <img src="img/harpinder.webp" width="100;" height="120" alt="harpinder.webp"/>
+            <img src="https://raw.githubusercontent.com/Civic-Interactions-Lab/storyquest/refs/heads/main/documentation/static/img/harpinder.webp" width="100" height="120" alt="harpinder.webp"/>
             <br />
             <sub><b>Harpinder Singh</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/molly-pop">
-            <img src="img/molly.webp" width="100" height="120" alt="molly.webp"/>
+            <img src="https://raw.githubusercontent.com/Civic-Interactions-Lab/storyquest/refs/heads/main/documentation/static/img/molly.webp" width="100" height="120" alt="molly.webp"/>
             <br />
             <sub><b>Molly Barron</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/molly-pop">
-            <img src="img/josh.webp" width="100" height="120" alt="josh.webp"/>
+            <img src="https://raw.githubusercontent.com/Civic-Interactions-Lab/storyquest/refs/heads/main/documentation/static/img/josh.webp" width="100" height="120" alt="josh.webp"/>
             <br />
             <sub><b>Josh Varkley</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/tt50">
-            <img src="img/tiffany.webp" width="100" height="120" alt="tiffany.webp"/>
+            <img src="https://raw.githubusercontent.com/Civic-Interactions-Lab/storyquest/refs/heads/main/documentation/static/img/tiffany.webp" width="100" height="120" alt="tiffany.webp"/>
             <br />
             <sub><b>Tiffany Truong</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/shaynaodle">
-            <img src="img/shayna.webp" width="100" height="120" alt="shayna.webp"/>
+            <img src="https://raw.githubusercontent.com/Civic-Interactions-Lab/storyquest/refs/heads/main/documentation/static/img/shayna.webp" width="100" height="120" alt="shayna.webp"/>
             <br />
             <sub><b>Shayna Odle</b></sub>
         </a>
