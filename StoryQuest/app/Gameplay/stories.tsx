@@ -580,7 +580,7 @@ const stories: Story[] = [
       },
 
       {
-        phrase: "Hiding on the right we spotted a(n) ___.",
+        phrase: "Hiding on the right we spotted a ___.",
         words: {
           sun: { image: "sun.svg", x: 90, y: 90, effect: "scaleUp" },
           spaceDog: { image: "spaceDog.svg", x: 90, y: 90, effect: "fade" },
