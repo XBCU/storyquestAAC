@@ -219,6 +219,8 @@ export default function Home() {
         //setPhrase(gameData.currentPhrase || "");
         setCompletedPhrases(gameData.completedPhrases || []);
         setCompletedImages(gameData.completedImages || []);
+        setSelectedWords(gameData.selectedWords || []); 
+        setTurnReminders(gameData.turnReminders || []); 
         setCurrentTurn(gameData.currentTurn || 1);
         setStoryCompleted(gameData.gameStatus === "completed");
         setDifficulty(gameData.difficulty || "easy"); // Load difficulty from DB
@@ -272,7 +274,7 @@ export default function Home() {
       unsubscribe();
       unsubscribePlayers();
     };
-  }, [roomId, lastPlayedWord, currentStory]); // Added currentStory to dependency array
+  }, [roomId, lastPlayedWord, currentStory, playerAvatars]); // Added currentStory to dependency array
 
   useEffect(() => {
     if (!storyTitle || stories.length === 0) return;
