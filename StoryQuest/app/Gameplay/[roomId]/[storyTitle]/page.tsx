@@ -36,7 +36,7 @@ const getImageAnimation = () => ({
 
 const getNumPhrases = (difficulty: "easy" | "medium" | "hard") => {
   if (difficulty === "easy") return 4;
-  if (difficulty === "medium" ) return 8;
+  if (difficulty === "medium") return 8;
   if (difficulty === "hard") return 12;
   return 8; // default
 };
@@ -102,6 +102,8 @@ export default function Home() {
   const { addToSpeechQueue, stopSpeech, isProcessingSpeech, voicesLoaded } = useSpeechQueue();
   const lastPhraseRef = useRef<string>("");
   const [lastSelectorNumber, setLastSelectorNumber] = useState<number | null>(null);
+
+  const turnStartTimeRef = useRef<number | null>(null);
 
   //Grabbing roomID and story title from URL
   //roomID stores in firestore
@@ -187,6 +189,17 @@ export default function Home() {
     };
   }, [currentTurn, playerAvatars, playerNumber, announcePlayer]);
 
+  useEffect(() => {
+    // Track the turn start for the device of the current player
+    if (playerNumber === currentTurn && currentTurn !== null && phrase !== "The End!") {
+      turnStartTimeRef.current = Date.now();
+      console.log(`Turn ${currentTurn} (Subsequent) started at: ${turnStartTimeRef.current}`);
+    } else {
+      // Clear the ref if it's not this device's turn or game is over
+      turnStartTimeRef.current = null;
+    }
+  }, [currentTurn, playerNumber, phrase]);
+
   //This is the snapshot used to retrieve game state in firestore
   useEffect(() => {
     if (!roomId) return;
@@ -219,8 +232,8 @@ export default function Home() {
         //setPhrase(gameData.currentPhrase || "");
         setCompletedPhrases(gameData.completedPhrases || []);
         setCompletedImages(gameData.completedImages || []);
-        setSelectedWords(gameData.selectedWords || []); 
-        setTurnReminders(gameData.turnReminders || []); 
+        setSelectedWords(gameData.selectedWords || []);
+        setTurnReminders(gameData.turnReminders || []);
         setCurrentTurn(gameData.currentTurn || 1);
         setStoryCompleted(gameData.gameStatus === "completed");
         setDifficulty(gameData.difficulty || "easy"); // Load difficulty from DB
@@ -426,6 +439,11 @@ export default function Home() {
     setShowInitialPlayOverlay(false);
     lastPhraseRef.current = phrase; // Mark this phrase as already read to prevent auto-reading duplication
 
+    if (playerNumber === currentTurn && currentTurn !== null) {
+      turnStartTimeRef.current = Date.now();
+      console.log(`Turn ${currentTurn} (Initial Play) started at: ${turnStartTimeRef.current}`);
+    }
+
     const u = new SpeechSynthesisUtterance(phrase);
     // Assign preferred voice to the utterance
     const prefVoice = getPreferredVoice();
@@ -529,11 +547,24 @@ export default function Home() {
 
     if (!selectedWordData) return;
 
+    let timeSpentOnTurn = null;
+    if (turnStartTimeRef.current) {
+      // Calculate duration in milliseconds
+      timeSpentOnTurn = Date.now() - turnStartTimeRef.current;
+      console.log(`Player ${currentTurn} took ${timeSpentOnTurn}ms to choose word: ${word}`);
+    }
+
+    // Clear the ref after calculation as the turn is ending
+    turnStartTimeRef.current = null;
+
+
+
     const lastWordSelected = {
       word,
       timestamp: new Date(),
       player: playerAvatars[currentTurn],
       playerNumber: currentTurn,
+      timeSpentMs: timeSpentOnTurn,
     };
 
     const newImage = {
@@ -725,8 +756,7 @@ export default function Home() {
                       return (
                         <div key={num} className="flex flex-col items-center">
                           <span
-                            className={`${
-                              highlight
+                            className={`${highlight
                                 ? "text-7xl p-4 border-4 ring-4 ring-yellow-300 bg-green-500 rounded-full scale-150 animate-pulse glow"
                                 : "text-5xl p-2 border-2 border-gray-400"
                               }
@@ -754,11 +784,10 @@ export default function Home() {
               <div className="mt-2 text-center w-full">
                 {playerNumber === currentTurn ? (
                   <p
-                    className={`text-2xl font-extrabold ${
-                      highlightedPlayer === currentTurn
+                    className={`text-2xl font-extrabold ${highlightedPlayer === currentTurn
                         ? "text-red-600 animate-pulse font-patrick-hand"
                         : "font-patrick-hand text-green-600"
-                    }`}
+                      }`}
                   >
                     {highlightedPlayer === currentTurn
                       ? "⚠️ YOUR TURN! (PLAY NOW!)"
