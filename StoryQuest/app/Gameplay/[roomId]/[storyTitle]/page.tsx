@@ -5,8 +5,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import stories, { Story } from "../../stories"; //import the stories interface
 import { useParams } from "next/navigation"; //To retrieve story based on room settings
-import AACKeyboard from "../../../Components/AACKeyboard";
+import AACAudioRecorder from "../../../Components/AACAudioRecorder";
 import TextToSpeechAACButtons from "../../../Components/TextToSpeechAACButtons";
+import { transcribeAudio } from "aac-speech-recognition/browser";
 import { motion, AnimatePresence } from "framer-motion";
 import CompletionPage from "../../../CompletionPage/page";
 import useSpeechQueue, { getPreferredVoice } from "../../../Components/useSpeechQueue";
@@ -524,11 +525,26 @@ export default function Home() {
   }, [addToSpeechQueue, stopSpeech]);
 
   // Word has been selected from "AAC board", replace blank, add in visual element, update the firestore
-  const handleWordSelect = async (word: string) => {
+  const handleWordSelect = async (audioFile: File) => {
     if (!currentStory) return;
     // Clear existing timer
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
+    }
+
+    // Call API to get word from audio
+    let word: string;
+    try {
+      const result = await transcribeAudio(audioFile);
+      word = result.transcription || "";
+      if (!word) {
+        alert("Could not recognize speech from audio. Please try again.");
+        return;
+      }
+    } catch (error) {
+      console.error("Error recognizing speech:", error);
+      alert("Error processing audio. Please try again.");
+      return;
     }
 
     // Access words from the trimmed sections
@@ -621,12 +637,12 @@ export default function Home() {
     setSelectedWords([...selectedWords, lastWordSelected]);
   };
 
-  const handleAACSelect = (word: string) => {
+  const handleAACSelect = (audioFile: File) => {
     if (playerNumber !== currentTurn) {
       return;
     }
 
-    handleWordSelect(word);
+    handleWordSelect(audioFile);
 
     // Reset announcement state and timer
     if (inactivityTimerRef.current) {
@@ -806,19 +822,8 @@ export default function Home() {
               }`}
             style={{ height: "60%" }}
           >
-            <AACKeyboard
+            <AACAudioRecorder
               onSelect={handleAACSelect}
-              symbols={
-                trimmedSections[currentSectionIndex] // Use trimmedSections here
-                  ? Object.entries(
-                    trimmedSections[currentSectionIndex].words
-                  ).map(([word, data]) => ({
-                    word: word,
-                    image: `/images/${data.image}`,
-                    displayText: word,
-                  }))
-                  : []
-              }
               backgroundColor={currentStory?.colorTheme.backgroundColor}
               buttonColor={currentStory?.colorTheme.buttonColor}
               blockButtons={blockOverlay} // Last phrase "The End!"
