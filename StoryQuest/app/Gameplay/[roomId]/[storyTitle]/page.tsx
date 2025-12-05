@@ -7,7 +7,6 @@ import stories, { Story } from "../../stories"; //import the stories interface
 import { useParams } from "next/navigation"; //To retrieve story based on room settings
 import AACAudioRecorder from "../../../Components/AACAudioRecorder";
 import TextToSpeechAACButtons from "../../../Components/TextToSpeechAACButtons";
-import { transcribeAudio } from "aac-speech-recognition/browser";
 import { motion, AnimatePresence } from "framer-motion";
 import CompletionPage from "../../../CompletionPage/page";
 import useSpeechQueue, { getPreferredVoice } from "../../../Components/useSpeechQueue";
@@ -532,9 +531,11 @@ export default function Home() {
       clearTimeout(inactivityTimerRef.current);
     }
 
-    // Call API to get word from audio
+    // Call API to get word from audio using the library
     let word: string;
     try {
+      // Dynamic import to handle ES module in Next.js
+      const { transcribeAudio } = await import("aac-speech-recognition/browser");
       const result = await transcribeAudio(audioFile);
       word = result.transcription || "";
       if (!word) {
