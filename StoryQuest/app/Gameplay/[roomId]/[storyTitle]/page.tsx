@@ -3,6 +3,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
+const TranscriberClient = dynamic(() => import("../../../Components/TranscriberClient"), {
+  ssr: false,
+});
 import stories, { Story } from "../../stories"; //import the stories interface
 import { useParams } from "next/navigation"; //To retrieve story based on room settings
 import AACAudioRecorder from "../../../Components/AACAudioRecorder";
@@ -102,6 +106,7 @@ export default function Home() {
   const { addToSpeechQueue, stopSpeech, isProcessingSpeech, voicesLoaded } = useSpeechQueue();
   const lastPhraseRef = useRef<string>("");
   const [lastSelectorNumber, setLastSelectorNumber] = useState<number | null>(null);
+  const transcriberRef = useRef<any>(null);
 
   const turnStartTimeRef = useRef<number | null>(null);
 
@@ -524,7 +529,7 @@ export default function Home() {
   }, [addToSpeechQueue, stopSpeech]);
 
   // Word has been selected from "AAC board", replace blank, add in visual element, update the firestore
-  const handleWordSelect = async (audioFile: File) => {
+  const handleWordSelect = async (audioBlob: Blob) => {
     if (!currentStory) return;
     // Clear existing timer
     if (inactivityTimerRef.current) {
@@ -534,10 +539,27 @@ export default function Home() {
     // Call API to get word from audio using the library
     let word: string;
     try {
-      // Dynamic import to handle ES module in Next.js
-      const { transcribeAudio } = await import("aac-speech-recognition/browser");
-      const result = await transcribeAudio(audioFile);
-      word = result.transcription || "";
+      console.log('handleWordSelect called with:', {
+        audioBlob,
+        isBlob: audioBlob instanceof Blob,
+        size: audioBlob.size,
+        type: audioBlob.type,
+        constructor: audioBlob.constructor.name,
+      });
+
+      // Prefer client-only transcriber (rendered via dynamic import with ssr:false)
+      let result: any;
+      if (transcriberRef.current && typeof transcriberRef.current.transcribeAudio === "function") {
+        console.log('Using transcriber ref');
+        result = await transcriberRef.current.transcribeAudio(audioBlob);
+      } else {
+        // Fallback to dynamic import if component/ref isn't ready
+        console.log('Using dynamic import fallback');
+        const mod = await import("aac-speech-recognition/browser");
+        result = await mod.transcribeAudio(audioBlob);
+      }
+
+      word = result?.transcription || "";
       if (!word) {
         alert("Could not recognize speech from audio. Please try again.");
         return;
@@ -638,17 +660,109 @@ export default function Home() {
     setSelectedWords([...selectedWords, lastWordSelected]);
   };
 
-  const handleAACSelect = (audioFile: File) => {
+  const handleAACSelect = (audioBlob: Blob) => {
     if (playerNumber !== currentTurn) {
       return;
     }
 
-    handleWordSelect(audioFile);
+    handleWordSelect(audioBlob);
 
     // Reset announcement state and timer
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
+  };
+
+  // Handle direct word selection from available options display
+  const handleOptionClick = async (word: string) => {
+    if (playerNumber !== currentTurn) {
+      return;
+    }
+
+    if (!currentStory) return;
+
+    // Clear existing timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+
+    // Access words from the trimmed sections
+    const currentSections = trimmedSections;
+    if (!currentSections || currentSectionIndex >= trimmedSections.length) {
+      return;
+    }
+
+    const currentWords = currentSections[currentSectionIndex].words;
+
+    if (!currentWords[word]) {
+      alert(`Word "${word}" not found in current section!`);
+      return;
+    }
+
+    const selectedWordData = currentSections[currentSectionIndex]?.words[word];
+    if (!selectedWordData) return;
+
+    let timeSpentOnTurn = null;
+    if (turnStartTimeRef.current) {
+      timeSpentOnTurn = Date.now() - turnStartTimeRef.current;
+      console.log(`Player ${currentTurn} took ${timeSpentOnTurn}ms to choose word: ${word}`);
+    }
+
+    turnStartTimeRef.current = null;
+
+    const newPhrase = phrase.replace("___", word);
+    const imageX = Math.random() * 60 + 20; // Random x between 20-80
+    const imageY = Math.random() * 40 + 20; // Random y between 20-60
+    const newImage = {
+      src: `/images/${selectedWordData.image}`,
+      alt: word,
+      x: imageX,
+      y: imageY,
+    };
+
+    const gameRef = doc(db, "games", roomId);
+    const lastWordSelected = word;
+
+    const docSnap = await getDoc(gameRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const maxPlayers = data.maxPlayers || 4;
+      const nextTurn = currentTurn === maxPlayers ? 1 : currentTurn + 1;
+      const nextSectionIndex = currentSectionIndex + 1;
+      const isLastSection = nextSectionIndex >= numberOfPhrasesForGame;
+      const nextPhrase = isLastSection
+        ? "The End!"
+        : trimmedSections[nextSectionIndex]?.phrase || "The End!";
+
+      const gameDataToSave = {
+        completedPhrases: [...completedPhrases, newPhrase],
+        completedImages: [...completedImages, newImage],
+        selectedWords: [...selectedWords, lastWordSelected],
+        turnReminders: turnReminders,
+        currentSectionIndex: isLastSection
+          ? currentSectionIndex
+          : nextSectionIndex,
+        currentPhrase: nextPhrase,
+        lastWordSelected: lastWordSelected,
+        currentTurn: nextTurn,
+        lastUpdated: new Date(),
+        gameStatus: isLastSection ? "completed" : "in_progress",
+        numberOfPhrases: numberOfPhrasesForGame,
+      };
+      await setDoc(gameRef, gameDataToSave, { merge: true });
+      if (!isLastSection) {
+        setCurrentSectionIndex(nextSectionIndex);
+        setPhrase(trimmedSections[nextSectionIndex]?.phrase || "");
+      } else {
+        setPhrase("The End!");
+        setStoryCompleted(true);
+      }
+    }
+
+    setCompletedPhrases([...completedPhrases, newPhrase]);
+    setCompletedImages([...completedImages, newImage]);
+    setSelectedWords([...selectedWords, lastWordSelected]);
   };
 
   useEffect(() => {
@@ -829,7 +943,29 @@ export default function Home() {
               buttonColor={currentStory?.colorTheme.buttonColor}
               blockButtons={blockOverlay} // Last phrase "The End!"
             />
+            {/* Client-only transcriber (dynamically imported to avoid server/build parse) */}
+            {typeof window !== "undefined" && (
+              <TranscriberClient ref={transcriberRef} />
+            )}
           </div>
+
+          {/* Available Options Display */}
+          {currentStory && currentSectionIndex < trimmedSections.length && (
+            <div className="mt-2 p-2 bg-white rounded-lg shadow-md border-2 border-blue-300">
+              <p className="text-xs font-patrick-hand font-bold text-gray-700 mb-2">Available options:</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {Object.keys(trimmedSections[currentSectionIndex].words).map((word) => (
+                  <button
+                    key={word}
+                    onClick={() => handleOptionClick(word)}
+                    className="px-3 py-1 bg-blue-400 hover:bg-blue-500 text-white font-patrick-hand font-bold rounded-full text-sm transition-colors"
+                  >
+                    {word}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <TextToSpeechAACButtons
             text={phrase}

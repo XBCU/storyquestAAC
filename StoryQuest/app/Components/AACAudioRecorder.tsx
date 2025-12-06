@@ -2,9 +2,10 @@
 
 import React, { useState, useRef } from "react";
 import { motion } from "framer-motion";
+import { convertToWAV } from "../utils/audioConverter";
 
 interface AACAudioRecorderProps {
-  onSelect: (audioFile: File) => void;
+  onSelect: (audioBlob: Blob) => void;
   backgroundColor?: string;
   buttonColor?: string;
   blockButtons?: boolean;
@@ -28,7 +29,18 @@ const AACAudioRecorder: React.FC<AACAudioRecorderProps> = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setHasPermission(true);
 
-      const mediaRecorder = new MediaRecorder(stream);
+      // Determine the best supported MIME type for this browser
+      const mimeType = (() => {
+        const types = ['audio/webm', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm;codecs=opus'];
+        for (const type of types) {
+          if (MediaRecorder.isTypeSupported(type)) {
+            return type;
+          }
+        }
+        return ''; // Let MediaRecorder use default
+      })();
+
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -39,9 +51,48 @@ const AACAudioRecorder: React.FC<AACAudioRecorderProps> = ({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
-        const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
-        onSelect(audioFile);
+        if (audioChunksRef.current.length === 0) {
+          console.warn('No audio data captured');
+          alert('No audio was recorded. Please try again.');
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        // Use the actual MIME type from the mediaRecorder
+        const actualMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
+        
+        console.log('Audio recording stopped:', {
+          chunks: audioChunksRef.current.length,
+          blobSize: audioBlob.size,
+          mimeType: actualMimeType,
+          isBlob: audioBlob instanceof Blob,
+        });
+
+        if (audioBlob.size === 0) {
+          console.warn('Blob size is zero');
+          alert('Audio blob is empty. Please try recording again.');
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        // Convert to WAV format for transcriber compatibility
+        convertToWAV(audioBlob).then((wavBlob) => {
+          console.log('Audio converted to WAV:', {
+            originalSize: audioBlob.size,
+            originalType: audioBlob.type,
+            convertedSize: wavBlob.size,
+            convertedType: wavBlob.type,
+            isBlob: wavBlob instanceof Blob,
+          });
+
+          // Pass the WAV blob to the transcriber
+          onSelect(wavBlob);
+        }).catch((error) => {
+          console.error('Error converting audio to WAV:', error);
+          // Fallback: send original blob if conversion fails
+          onSelect(audioBlob);
+        });
         
         // Stop all tracks to release the microphone
         stream.getTracks().forEach((track) => track.stop());
